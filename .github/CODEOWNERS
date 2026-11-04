@@ -1,0 +1,7 @@
+*   **`apps/fe`**: `@career-intelligence/fe` — Frontend (Next.js)
+*   **`apps/be`**: `@career-intelligence/be` — Backend (NestJS)
+*   **`apps/worker`**: `@career-intelligence/worker` — Background jobs (BullMQ)
+*   **`apps/extension`**: `@career-intelligence/extension` — Chrome extension
+*   **`packages/database`**: `@career-intelligence/database` — Mongoose models + repositories
+*   **`packages/shared`**: `@career-intelligence/shared` — Shared types, Zod schemas
+*   **`packages/ui`**: `@career-intelligence/ui` — UI primitives

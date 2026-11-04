@@ -1,0 +1,55 @@
+name: CI - Shared Packages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/shared/**"
+      - "packages/database/**"
+      - "packages/ui/**"
+      - "package.json"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+      - "turbo.json"
+      - ".github/workflows/ci-be.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/shared/**"
+      - "packages/database/**"
+      - "packages/ui/**"
+      - "package.json"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+      - "turbo.json"
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (all)
+        run: pnpm run typecheck
+
+      - name: Build (all)
+        run: pnpm run build

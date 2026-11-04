@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 248 247 243;
+    --foreground: 31 30 29;
+
+    --card: 255 255 254;
+    --card-foreground: 31 30 29;
+
+    --popover: 255 255 254;
+    --popover-foreground: 31 30 29;
+
+    --primary: 58 53 49;
+    --primary-foreground: 255 255 254;
+
+    --secondary: 229 224 216;
+    --secondary-foreground: 31 30 29;
+
+    --muted: 229 224 216;
+    --muted-foreground: 107 106 104;
+
+    --accent: 187 163 140;
+    --accent-foreground: 31 30 29;
+
+    --destructive: 139 45 45;
+    --destructive-foreground: 255 255 254;
+
+    --border: 205 200 194;
+    --input: 205 200 194;
+    --ring: 58 53 49;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 27 25 24;
+    --foreground: 250 248 243;
+
+    --card: 34 31 30;
+    --card-foreground: 250 248 243;
+
+    --popover: 34 31 30;
+    --popover-foreground: 250 248 243;
+
+    --primary: 214 201 185;
+    --primary-foreground: 27 25 24;
+
+    --secondary: 62 58 55;
+    --secondary-foreground: 250 248 243;
+
+    --muted: 62 58 55;
+    --muted-foreground: 177 172 166;
+
+    --accent: 133 112 97;
+    --accent-foreground: 250 248 243;
+
+    --destructive: 180 70 70;
+    --destructive-foreground: 255 255 254;
+
+    --border: 77 72 68;
+    --input: 77 72 68;
+    --ring: 214 201 185;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .border-border {
+    border-color: hsl(var(--border));
+  }
+  .bg-background {
+    background-color: hsl(var(--background));
+  }
+  .text-foreground {
+    color: hsl(var(--foreground));
+  }
+}

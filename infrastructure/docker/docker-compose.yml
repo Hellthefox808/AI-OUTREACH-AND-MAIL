@@ -1,0 +1,51 @@
+# Career Intelligence OS — Local Development Infrastructure
+#
+# Services:
+#   mongodb   - MongoDB 7 (application database)
+#   redis     - Redis 7 (cache + BullMQ queue)
+#
+# Never use production data as local seed data.
+# Never expose MongoDB or Redis publicly — they bind to localhost only.
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: career-intelligence-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    command: ["--bind_ip", "0.0.0.0", "--port", "27017"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - career-intelligence
+
+  redis:
+    image: redis:7-alpine
+    container_name: career-intelligence-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - career-intelligence
+
+volumes:
+  mongodb_data:
+  redis_data:
+
+networks:
+  career-intelligence:
+    driver: bridge

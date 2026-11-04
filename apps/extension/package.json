@@ -1,0 +1,22 @@
+{
+  "name": "@career-intelligence/extension",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Career Intelligence OS Chrome Manifest V3 extension.",
+  "scripts": {
+    "build": "tsc --noEmit && echo \"Extension typecheck passed\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint \"src/**/*.ts\" --fix",
+    "test": "vitest run",
+    "package": "echo \"Extension packaging: run `crx pack` or use webstore-upload-cli\""
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.285",
+    "@types/node": "^20.14.0",
+    "typescript": "~5.5.4",
+    "vitest": "^1.6.0"
+  }
+}

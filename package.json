@@ -1,0 +1,44 @@
+{
+  "name": "career-intelligence-os",
+  "private": true,
+  "description": "Career Intelligence OS — Company research, recruiter discovery, outreach automation platform.",
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "dev:fe": "turbo run dev --filter=@career-intelligence/fe",
+    "dev:be": "turbo run dev --filter=@career-intelligence/be",
+    "dev:worker": "turbo run dev --filter=@career-intelligence/worker",
+    "dev:extension": "turbo run dev --filter=@career-intelligence/extension",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
+    "test:integration": "turbo run test:integration",
+    "test:e2e": "turbo run test:e2e",
+    "test:coverage": "turbo run test -- --coverage",
+    "typecheck": "turbo run typecheck",
+    "clean": "turbo run clean",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "validate": "pnpm run typecheck && pnpm run lint && pnpm run test",
+    "audit": "pnpm audit --production",
+    "db:generate": "turbo run db:generate",
+    "db:push": "turbo run db:push"
+  },
+  "devDependencies": {
+    "@turbo/gen": "^1.13.0",
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
+    "@typescript-eslint/parser": "^8.72.1",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
+    "turbo": "^1.13.0",
+    "typescript": "~5.5.4",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^1.6.0"
+  }
+}

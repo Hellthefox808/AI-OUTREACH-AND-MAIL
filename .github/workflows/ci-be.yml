@@ -1,0 +1,75 @@
+name: CI - Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/be/**"
+      - "packages/database/**"
+      - "packages/shared/**"
+      - "package.json"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+      - "turbo.json"
+      - ".github/workflows/ci-be.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/be/**"
+      - "packages/database/**"
+      - "packages/shared/**"
+      - "package.json"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+      - "turbo.json"
+      - ".github/workflows/ci-be.yml"
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm --filter @career-intelligence/be typecheck
+
+      - name: Lint
+        run: pnpm --filter @career-intelligence/be lint
+
+      - name: Build
+        run: pnpm --filter @career-intelligence/be build
+
+      - name: Unit tests
+        run: pnpm --filter @career-intelligence/be test
+        env:
+          DATABASE_URL: mongodb://localhost:27017/career-intelligence-os-test
+          REDIS_URL: redis://localhost:6379

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "pipeline": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "lib/**", "build/**"],
+      "cache": true
+    },
+    "lint": {
+      "outputs": []
+    },
+    "test": {
+      "outputs": [],
+      "dependsOn": ["^build"]
+    },
+    "test:unit": {
+      "outputs": []
+    },
+    "test:integration": {
+      "outputs": []
+    },
+    "test:e2e": {
+      "outputs": []
+    },
+    "test:coverage": {
+      "outputs": []
+    },
+    "typecheck": {
+      "outputs": [],
+      "dependsOn": ["^build"]
+    },
+    "dev": {
+      "cache": false
+    },
+    "db:generate": {
+      "outputs": []
+    },
+    "db:push": {
+      "outputs": []
+    },
+    "clean": {
+      "cache": false
+    }
+  },
+  "globalEnv": ["DATABASE_URL", "REDIS_URL", "NEXTAUTH_SECRET", "NODE_ENV"],
+  "globalDependencies": [".env.*"]
+}

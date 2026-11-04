@@ -1,0 +1,90 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Turborepo
+.turbo/
+dist/
+build/
+lib/
+*.tsbuildinfo
+
+# Frontend lib (explicitly kept - not build output)
+!apps/fe/src/lib/
+
+# Next.js
+.next/
+out/
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Coverage
+coverage/
+
+# Misc
+*.orig
+*.rej
+
+# Conda / local environments
+.conda/
+
+# Keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Credential files
+credentials.json
+secrets.json
+token.json
+client_secret.json
+
+# Database dumps and artifacts
+*.dump
+*.sql
+*.sqlite
+*.db
+
+# Archives
+*.zip
+*.tar
+*.gz
+
+# Local data / exports / research
+uploads/
+exports/
+backups/
+research-output/
+agent-output/
+scratch/
+
+# Editor / agent configuration
+.claude/
+.cursor/
+.windsurf/
