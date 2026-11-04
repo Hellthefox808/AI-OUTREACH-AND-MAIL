@@ -44,6 +44,10 @@ describe("Authentication integration flow", () => {
   let users: { [key: string]: any };
   let sessions: { [key: string]: any };
   let workspaces: { [key: string]: any };
+  let memberships: { [key: string]: any };
+  let roles: { [key: string]: any };
+  let permissions: { [key: string]: any };
+  let seed: { [key: string]: any };
   let jwt: { [key: string]: any };
   let config: { [key: string]: any };
 
@@ -67,6 +71,25 @@ describe("Authentication integration flow", () => {
       findBySlug: vi.fn(),
       create: vi.fn(),
     };
+    memberships = {
+      findByUserAndWorkspace: vi.fn(),
+      create: vi.fn(),
+    };
+    roles = {
+      findByName: vi.fn(),
+      findById: vi.fn(),
+      create: vi.fn(),
+      updateById: vi.fn(),
+    };
+    permissions = {
+      findByKey: vi.fn(),
+      findById: vi.fn(),
+      findByWorkspace: vi.fn(),
+      create: vi.fn(),
+    };
+    seed = {
+      seedWorkspace: vi.fn(),
+    };
     jwt = {
       sign: vi.fn((_payload: any, _opts: any) =>
         _opts.secret === "access-secret" ? "access-token" : "refresh-token"
@@ -88,6 +111,10 @@ describe("Authentication integration flow", () => {
       users as any,
       sessions as any,
       workspaces as any,
+      memberships as any,
+      roles as any,
+      permissions as any,
+      seed as any,
       jwt as any,
       config as any
     );

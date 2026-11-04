@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { MongooseModule } from "@nestjs/mongoose";
 import { JwtModule } from "@nestjs/jwt";
 import { DatabaseModule } from "@career-intelligence/database";
@@ -13,6 +13,7 @@ import { WorkspacesModule } from "./modules/workspaces/workspaces.module";
 import { CompaniesModule } from "./modules/companies/companies.module";
 import { RecruitersModule } from "./modules/recruiters/recruiters.module";
 import { JobsModule } from "./modules/jobs/jobs.module";
+import { SeedModule } from "./modules/seed/seed.module";
 import { AuthGuard } from "./common/guards/auth.guard";
 import { RbacGuard } from "./common/guards/rbac.guard";
 import { WorkspaceScopeGuard } from "./common/guards/workspace-scope.guard";
@@ -29,10 +30,19 @@ import { WorkspaceScopeGuard } from "./common/guards/workspace-scope.guard";
         return { uri };
       },
     }),
-    JwtModule.register({
+    JwtModule.registerAsync({
       global: true,
-      secret: process.env.JWT_ACCESS_SECRET || "change-me-in-production",
-      signOptions: { expiresIn: "15m" },
+      useFactory: async (config: ConfigService) => {
+        const secret = config.get<string>("JWT_ACCESS_SECRET");
+        if (!secret || secret === "change-me-in-production") {
+          throw new Error("JWT_ACCESS_SECRET must be configured");
+        }
+        return {
+          secret,
+          signOptions: { expiresIn: "15m" },
+        };
+      },
+      inject: [ConfigService],
     }),
     DatabaseModule,
     HealthModule,
@@ -42,6 +52,7 @@ import { WorkspaceScopeGuard } from "./common/guards/workspace-scope.guard";
     CompaniesModule,
     RecruitersModule,
     JobsModule,
+    SeedModule,
   ],
   controllers: [AppController],
   providers: [

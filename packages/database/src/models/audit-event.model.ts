@@ -53,6 +53,5 @@ export const AuditEventSchema = SchemaFactory.createForClass(AuditEvent);
 AuditEventSchema.index({ userId: 1, createdAt: -1 });
 AuditEventSchema.index({ workspaceId: 1, action: 1, createdAt: -1 });
 AuditEventSchema.index({ action: 1, outcome: 1, createdAt: -1 });
-AuditEventSchema.index({ createdAt: 1 }, { expireAfterSeconds: 0 });
 
 export type AuditEventDocument = AuditEvent & Document;

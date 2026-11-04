@@ -43,7 +43,10 @@ export class AuthGuard {
       throw new UnauthorizedException("Invalid or expired access token");
     }
 
-    const user = await this.auth.validateUser(payload.sub);
+    const user = await this.auth.validateUser(
+      payload.sub,
+      payload.workspaceId,
+    );
     if (!user) {
       throw new UnauthorizedException("User not found or inactive");
     }

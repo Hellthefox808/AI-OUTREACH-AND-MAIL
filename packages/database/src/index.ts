@@ -51,3 +51,6 @@ export { SessionRepository } from "./repositories/session.repository";
 export { CompanyRepository } from "./repositories/company.repository";
 export { RecruiterRepository } from "./repositories/recruiter.repository";
 export { JobRepository } from "./repositories/job.repository";
+export { MembershipRepository } from "./repositories/membership.repository";
+export { PermissionRepository } from "./repositories/permission.repository";
+export { RoleRepository } from "./repositories/role.repository";

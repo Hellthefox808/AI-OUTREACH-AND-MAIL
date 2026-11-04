@@ -21,12 +21,18 @@ import {
   UserRepository,
   SessionRepository,
   WorkspaceRepository,
+  MembershipRepository,
+  RoleRepository,
+  PermissionRepository,
+  type PermissionDocument,
 } from "@career-intelligence/database";
+import { SeedService } from "../seed/seed.service";
 import {
   NotFoundError,
   ConflictError,
   ForbiddenError,
   UnauthorizedError,
+  ROLES,
 } from "@career-intelligence/shared";
 
 const SALT_ROUNDS = 12;
@@ -41,6 +47,10 @@ export class AuthService {
     private readonly users: UserRepository,
     private readonly sessions: SessionRepository,
     private readonly workspaces: WorkspaceRepository,
+    private readonly memberships: MembershipRepository,
+    private readonly roles: RoleRepository,
+    private readonly permissions: PermissionRepository,
+    private readonly seed: SeedService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
   ) {}
@@ -59,6 +69,42 @@ export class AuthService {
       throw new Error("JWT_REFRESH_SECRET must be configured");
     }
     return secret;
+  }
+
+  /**
+   * Loads permission keys for a user in a workspace by resolving their
+   * membership → role → permissions chain.
+   */
+  async loadUserPermissions(
+    userId: string | Types.ObjectId,
+    workspaceId: string,
+  ): Promise<string[]> {
+    const membership = await this.memberships.findByUserAndWorkspace(
+      userId,
+      workspaceId,
+    );
+    if (!membership) {
+      return [];
+    }
+
+    const role = await this.roles.findByName(
+      (membership as any).role,
+      workspaceId,
+    );
+    if (!role) {
+      return [];
+    }
+
+    const permissionIds: Types.ObjectId[] = (role as any).permissionIds || [];
+    const permissions = await Promise.all(
+      permissionIds.map((pid) =>
+        this.permissions.findById(pid, workspaceId),
+      ),
+    );
+
+    return permissions
+      .filter((p): p is PermissionDocument => p !== null)
+      .map((p) => p.key);
   }
 
   async hashPassword(password: string): Promise<string> {
@@ -110,7 +156,19 @@ export class AuthService {
       failedLoginAttempts: 0,
     });
 
-    return this.createSession(user as any, workspaceId);
+    // Seed default permissions and roles for the workspace
+    await this.seed.seedWorkspace(workspaceId);
+
+    // Assign the user the admin role in this workspace
+    await this.memberships.create({
+      userId: user._id,
+      workspaceId: new Types.ObjectId(workspaceId),
+      role: ROLES.ADMIN,
+    });
+
+    const permissions = await this.loadUserPermissions(user._id, workspaceId);
+
+    return this.createSession(user as any, workspaceId, permissions);
   }
 
   /**
@@ -156,7 +214,9 @@ export class AuthService {
       throw new ForbiddenError("User is not a member of any workspace");
     }
 
-    return this.createSession(user as any, workspaceId as string);
+    const permissions = await this.loadUserPermissions(user._id, workspaceId);
+
+    return this.createSession(user as any, workspaceId, permissions);
   }
 
   async logout(tokenHash: string) {
@@ -169,11 +229,16 @@ export class AuthService {
     return { revoked: true };
   }
 
-  private async createSession(user: any, workspaceId: string) {
+  private async createSession(
+    user: any,
+    workspaceId: string,
+    permissions: string[] = [],
+  ) {
     const payload = {
       sub: user._id,
       email: user.email,
       workspaceId,
+      permissions,
     };
 
     const accessToken = this.jwt.sign(payload, {
@@ -187,6 +252,7 @@ export class AuthService {
       expiresIn: REFRESH_TTL,
     });
 
+    const accessTokenHash = await this.hashPassword(accessToken);
     const refreshTokenHash = await this.hashPassword(refreshToken);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const workspaceObjectId = new Types.ObjectId(workspaceId);
@@ -194,7 +260,7 @@ export class AuthService {
     await this.sessions.create({
       userId: user._id,
       workspaceId: workspaceObjectId,
-      tokenHash: accessToken,
+      tokenHash: accessTokenHash,
       refreshTokenHash,
       expiresAt,
     });
@@ -206,6 +272,7 @@ export class AuthService {
         id: user._id,
         email: user.email,
         workspaceId,
+        permissions,
       },
     };
   }
@@ -355,16 +422,20 @@ export class AuthService {
     return { mfaEnabled: false };
   }
 
-  async validateUser(userId: string) {
+  async validateUser(userId: string, workspaceId?: string) {
     const user = await this.users.findById(userId);
     if (!user || (user as any).deletedAt) {
       return null;
     }
+    const permissions = workspaceId
+      ? await this.loadUserPermissions(user._id, workspaceId)
+      : [];
     return {
       id: (user as any)._id,
       email: (user as any).email,
       workspaceIds: (user as any).workspaceIds,
       mfaEnabled: (user as any).mfaEnabled,
+      permissions,
     };
   }
 }
