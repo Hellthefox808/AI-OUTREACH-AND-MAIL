@@ -110,6 +110,10 @@ CompanySchema.index({ workspaceId: 1, domain: 1 }, { unique: true });
 CompanySchema.index({ workspaceId: 1, createdAt: -1 });
 CompanySchema.index({ workspaceId: 1, tier: 1 });
 CompanySchema.index({ workspaceId: 1, verificationStatus: 1 });
+// Compound ESR (Equality, Sort, Range) indexes for keyset cursor pagination & filtered queries
+CompanySchema.index({ workspaceId: 1, deletedAt: 1, _id: -1 });
+CompanySchema.index({ workspaceId: 1, tier: 1, deletedAt: 1, _id: -1 });
+CompanySchema.index({ workspaceId: 1, verificationStatus: 1, deletedAt: 1, _id: -1 });
 CompanySchema.index(
   { deletedAt: 1 },
   { partialFilterExpression: { deletedAt: { $exists: true } } }

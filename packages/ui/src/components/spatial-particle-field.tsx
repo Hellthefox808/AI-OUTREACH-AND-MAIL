@@ -113,18 +113,26 @@ export function SpatialParticleField({
       canvas.style.height = `${height}px`;
 
       ctx.scale(dpr, dpr);
+      canvasRect = canvas.getBoundingClientRect();
       initParticles();
+    };
+
+    let canvasRect = canvas.getBoundingClientRect();
+    const handleScroll = () => {
+      if (canvas) {
+        canvasRect = canvas.getBoundingClientRect();
+      }
     };
 
     handleResize();
     window.addEventListener('resize', handleResize);
+    window.addEventListener('scroll', handleScroll, { passive: true });
 
     const handlePointerMove = (e: MouseEvent) => {
       if (!interactive) return;
-      const rect = canvas.getBoundingClientRect();
       mousePos.current = {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
+        x: e.clientX - canvasRect.left,
+        y: e.clientY - canvasRect.top,
         active: true,
       };
     };
@@ -251,6 +259,7 @@ export function SpatialParticleField({
       }
       mediaQuery.removeEventListener('change', handleMotionChange);
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('mousemove', handlePointerMove);
       document.removeEventListener('mouseleave', handlePointerLeave);
       document.removeEventListener('visibilitychange', handleVisibilityChange);

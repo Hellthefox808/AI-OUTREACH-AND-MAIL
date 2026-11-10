@@ -9,6 +9,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -105,6 +106,13 @@ async function bootstrap() {
   // Cookie parsing for HTTP-only JWT session and CSRF tokens
   app.use(cookieParser());
 
+  // HTTP response compression (gzip / deflate) for payloads >= 1KB
+  app.use(
+    compression({
+      threshold: 1024,
+    }),
+  );
+
   // CORS — tightened in production via ALLOWED_ORIGINS env
   const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
     .split(',')
@@ -145,7 +153,14 @@ async function bootstrap() {
   SwaggerModule.setup("docs", app, document);
 
   const port = parseInt(process.env.PORT || '4000', 10);
-  await app.listen(port, '0.0.0.0');
+  const server = await app.listen(port, '0.0.0.0');
+
+  // Enterprise connection keep-alive tuning (ALB/Ingress race condition prevention)
+  if (server && typeof server === 'object' && 'keepAliveTimeout' in server) {
+    (server as any).keepAliveTimeout = 65000;
+    (server as any).headersTimeout = 66000;
+  }
+
   // eslint-disable-next-line no-console
   console.log(`Career Intelligence OS API listening on :${port}`);
 }

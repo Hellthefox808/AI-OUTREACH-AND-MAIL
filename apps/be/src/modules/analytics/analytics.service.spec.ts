@@ -56,6 +56,7 @@ describe("AnalyticsService", () => {
       ]),
     };
 
+    AnalyticsService.clearCache();
     service = new AnalyticsService(mockCompanies, mockRecruiters, mockJobs);
   });
 
@@ -104,5 +105,15 @@ describe("AnalyticsService", () => {
     expect(chatResult.reply).toContain("Company Intelligence Summary");
     expect(chatResult.reply).toContain("**Actively Hiring:** 5");
     expect(chatResult.suggestions.length).toBeGreaterThan(0);
+  });
+
+  it("serves repeated getOverview requests from memory cache within TTL window", async () => {
+    await service.getOverview("ws-cache-test");
+    expect(mockCompanies.getMetrics).toHaveBeenCalledTimes(1);
+
+    // Second call within TTL should hit cache and NOT re-invoke repository
+    const cached = await service.getOverview("ws-cache-test");
+    expect(mockCompanies.getMetrics).toHaveBeenCalledTimes(1);
+    expect(cached.workspaceId).toBe("ws-cache-test");
   });
 });

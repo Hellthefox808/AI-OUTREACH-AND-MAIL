@@ -56,6 +56,10 @@ export abstract class BaseRepository<T> {
       query.session(session);
     }
 
+    if (typeof (query as any).lean === "function") {
+      (query as any).lean();
+    }
+
     const docs = await query.exec();
 
     const hasMore = docs.length > limit;

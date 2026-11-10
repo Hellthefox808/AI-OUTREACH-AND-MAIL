@@ -82,6 +82,10 @@ RecruiterSchema.index(
 RecruiterSchema.index({ workspaceId: 1, createdAt: -1 });
 RecruiterSchema.index({ workspaceId: 1, companyId: 1 });
 RecruiterSchema.index({ workspaceId: 1, verificationStatus: 1 });
+// Compound ESR indexes for keyset cursor pagination & filtered queries
+RecruiterSchema.index({ workspaceId: 1, deletedAt: 1, _id: -1 });
+RecruiterSchema.index({ workspaceId: 1, companyId: 1, deletedAt: 1, _id: -1 });
+RecruiterSchema.index({ workspaceId: 1, verificationStatus: 1, deletedAt: 1, _id: -1 });
 RecruiterSchema.index(
   { deletedAt: 1 },
   { partialFilterExpression: { deletedAt: { $exists: true } } }

@@ -17,8 +17,27 @@ import type {
   TrendDataPoint,
 } from "@career-intelligence/shared";
 
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
 @Injectable()
 export class AnalyticsService {
+  private static readonly overviewCache = new Map<string, CacheEntry<WorkspaceAnalyticsOverview>>();
+  private static readonly breakdownCache = new Map<string, CacheEntry<WorkspaceAnalyticsBreakdown>>();
+  private static readonly CACHE_TTL_MS = 15_000; // 15s TTL for high-throughput dashboard hits
+
+  public static clearCache(): void {
+    AnalyticsService.overviewCache.clear();
+    AnalyticsService.breakdownCache.clear();
+  }
+
+  public static invalidate(workspaceId: string): void {
+    AnalyticsService.overviewCache.delete(workspaceId);
+    AnalyticsService.breakdownCache.delete(workspaceId);
+  }
+
   constructor(
     private readonly companies: CompanyRepository,
     private readonly recruiters: RecruiterRepository,
@@ -53,6 +72,11 @@ export class AnalyticsService {
   }
 
   async getOverview(workspaceId: string): Promise<WorkspaceAnalyticsOverview> {
+    const cached = AnalyticsService.overviewCache.get(workspaceId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+
     const [
       companyMetrics,
       companyTrendRaw,
@@ -82,7 +106,7 @@ export class AnalyticsService {
       );
     }
 
-    return {
+    const result: WorkspaceAnalyticsOverview = {
       workspaceId,
       companies: {
         total: companyMetrics.total,
@@ -111,9 +135,21 @@ export class AnalyticsService {
         lastSynchronizedAt: new Date().toISOString(),
       },
     };
+
+    AnalyticsService.overviewCache.set(workspaceId, {
+      data: result,
+      expiresAt: Date.now() + AnalyticsService.CACHE_TTL_MS,
+    });
+
+    return result;
   }
 
   async getBreakdown(workspaceId: string): Promise<WorkspaceAnalyticsBreakdown> {
+    const cached = AnalyticsService.breakdownCache.get(workspaceId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+
     const [topIndustries, topSkills, recruiterMetrics, jobMetrics] = await Promise.all([
       this.companies.getIndustryBreakdown(workspaceId, 8),
       this.jobs.getSkillBreakdown(workspaceId, 8),
@@ -139,13 +175,20 @@ export class AnalyticsService {
       })
     );
 
-    return {
+    const result: WorkspaceAnalyticsBreakdown = {
       workspaceId,
       topIndustries: topIndustries || [],
       topSkills: topSkills || [],
       recruiterVerificationDistribution,
       jobModeDistribution,
     };
+
+    AnalyticsService.breakdownCache.set(workspaceId, {
+      data: result,
+      expiresAt: Date.now() + AnalyticsService.CACHE_TTL_MS,
+    });
+
+    return result;
   }
 
   async chat(

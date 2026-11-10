@@ -95,6 +95,11 @@ JobPostingSchema.index(
 JobPostingSchema.index({ workspaceId: 1, createdAt: -1 });
 JobPostingSchema.index({ workspaceId: 1, companyId: 1 });
 JobPostingSchema.index({ workspaceId: 1, isActive: 1 });
+// Compound ESR indexes for keyset cursor pagination & filtered queries
+JobPostingSchema.index({ workspaceId: 1, deletedAt: 1, _id: -1 });
+JobPostingSchema.index({ workspaceId: 1, companyId: 1, deletedAt: 1, _id: -1 });
+JobPostingSchema.index({ workspaceId: 1, isActive: 1, deletedAt: 1, _id: -1 });
+JobPostingSchema.index({ workspaceId: 1, workMode: 1, deletedAt: 1, _id: -1 });
 JobPostingSchema.index(
   { deletedAt: 1 },
   { partialFilterExpression: { deletedAt: { $exists: true } } }
