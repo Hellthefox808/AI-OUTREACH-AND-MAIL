@@ -14,6 +14,7 @@
     "dev:worker": "turbo run dev --filter=@career-intelligence/worker",
     "dev:extension": "turbo run dev --filter=@career-intelligence/extension",
     "build": "turbo run build",
+    "build:fe": "turbo run build --filter=@career-intelligence/fe",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "test:unit": "turbo run test:unit",
