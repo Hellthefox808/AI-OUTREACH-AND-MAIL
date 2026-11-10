@@ -168,3 +168,5 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     </ToastContext.Provider>
   );
 }
+
+export { ToastProvider as SpatialToastProvider };

@@ -204,7 +204,7 @@ export interface PaginationInput {
 }
 
 export const PaginationQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).default(50).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().optional(),
 });
 export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
@@ -236,6 +236,36 @@ export function createPaginatedResultSchema<T extends z.ZodTypeAny>(itemSchema: 
 
 export const PaginatedResultSchema = createPaginatedResultSchema(z.unknown());
 export type PaginatedResultDto = z.infer<typeof PaginatedResultSchema>;
+
+/**
+ * Safely encodes a cursor payload (e.g. an ObjectId or composite keyset) into a URL-safe Base64 string.
+ */
+export function encodeCursor(cursor: string | Record<string, unknown>): string {
+  const raw = typeof cursor === 'string' ? cursor : JSON.stringify(cursor);
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(raw, 'utf-8').toString('base64url');
+  }
+  return btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/**
+ * Decodes a URL-safe Base64 cursor back into its raw string or parsed object form.
+ */
+export function decodeCursor<T = string>(encoded: string): T {
+  let decoded = '';
+  if (typeof Buffer !== 'undefined') {
+    decoded = Buffer.from(encoded, 'base64url').toString('utf-8');
+  } else {
+    const unpadded = encoded.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = unpadded.length % 4 === 0 ? '' : '='.repeat(4 - (unpadded.length % 4));
+    decoded = atob(unpadded + pad);
+  }
+  try {
+    return JSON.parse(decoded) as T;
+  } catch {
+    return decoded as unknown as T;
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Permissions                                                       */
