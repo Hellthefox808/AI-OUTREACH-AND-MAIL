@@ -1,28 +1,30 @@
-name: CI - Frontend
+name: CI - Frontend & Extension
 
 on:
   push:
     branches: [main]
     paths:
-      - "apps/fe/**"
-      - "packages/ui/**"
-      - "packages/shared/**"
-      - "package.json"
-      - "pnpm-workspace.yaml"
-      - "pnpm-lock.yaml"
-      - "turbo.json"
-      - ".github/workflows/ci-fe.yml"
+      - 'apps/fe/**'
+      - 'apps/extension/**'
+      - 'packages/ui/**'
+      - 'packages/shared/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - 'turbo.json'
+      - '.github/workflows/ci-fe.yml'
   pull_request:
     branches: [main]
     paths:
-      - "apps/fe/**"
-      - "packages/ui/**"
-      - "packages/shared/**"
-      - "package.json"
-      - "pnpm-workspace.yaml"
-      - "pnpm-lock.yaml"
-      - "turbo.json"
-      - ".github/workflows/ci-fe.yml"
+      - 'apps/fe/**'
+      - 'apps/extension/**'
+      - 'packages/ui/**'
+      - 'packages/shared/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - 'turbo.json'
+      - '.github/workflows/ci-fe.yml'
 
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
@@ -30,6 +32,7 @@ env:
 
 jobs:
   ci:
+    name: Frontend & Chrome Extension Verification
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -50,13 +53,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        run: pnpm --filter @career-intelligence/fe typecheck
+        run: pnpm --filter @career-intelligence/fe --filter @career-intelligence/extension --filter @career-intelligence/ui typecheck
 
       - name: Lint
-        run: pnpm --filter @career-intelligence/fe lint
+        run: pnpm --filter @career-intelligence/fe --filter @career-intelligence/extension lint
 
       - name: Build
-        run: pnpm --filter @career-intelligence/fe build
+        run: pnpm --filter @career-intelligence/fe --filter @career-intelligence/extension build
 
       - name: Unit tests
-        run: pnpm --filter @career-intelligence/fe test:unit
+        run: pnpm --filter @career-intelligence/fe --filter @career-intelligence/extension test

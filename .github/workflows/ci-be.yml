@@ -1,28 +1,32 @@
-name: CI - Backend
+name: CI - Backend & Workers
 
 on:
   push:
     branches: [main]
     paths:
-      - "apps/be/**"
-      - "packages/database/**"
-      - "packages/shared/**"
-      - "package.json"
-      - "pnpm-workspace.yaml"
-      - "pnpm-lock.yaml"
-      - "turbo.json"
-      - ".github/workflows/ci-be.yml"
+      - 'apps/be/**'
+      - 'apps/worker/**'
+      - 'packages/database/**'
+      - 'packages/shared/**'
+      - 'tests/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - 'turbo.json'
+      - '.github/workflows/ci-be.yml'
   pull_request:
     branches: [main]
     paths:
-      - "apps/be/**"
-      - "packages/database/**"
-      - "packages/shared/**"
-      - "package.json"
-      - "pnpm-workspace.yaml"
-      - "pnpm-lock.yaml"
-      - "turbo.json"
-      - ".github/workflows/ci-be.yml"
+      - 'apps/be/**'
+      - 'apps/worker/**'
+      - 'packages/database/**'
+      - 'packages/shared/**'
+      - 'tests/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - 'turbo.json'
+      - '.github/workflows/ci-be.yml'
 
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
@@ -30,16 +34,27 @@ env:
 
 jobs:
   ci:
+    name: Backend, Worker & E2E Verification
     runs-on: ubuntu-latest
     services:
       mongodb:
         image: mongo:7
         ports:
           - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
       redis:
         image: redis:7-alpine
         ports:
           - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout repository
@@ -60,16 +75,26 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        run: pnpm --filter @career-intelligence/be typecheck
+        run: pnpm --filter @career-intelligence/be --filter @career-intelligence/worker --filter @career-intelligence/database typecheck
 
       - name: Lint
-        run: pnpm --filter @career-intelligence/be lint
+        run: pnpm --filter @career-intelligence/be --filter @career-intelligence/worker lint
 
       - name: Build
-        run: pnpm --filter @career-intelligence/be build
+        run: pnpm --filter @career-intelligence/be --filter @career-intelligence/worker build
 
       - name: Unit tests
-        run: pnpm --filter @career-intelligence/be test
+        run: pnpm --filter @career-intelligence/be --filter @career-intelligence/worker --filter @career-intelligence/database test
         env:
           DATABASE_URL: mongodb://localhost:27017/career-intelligence-os-test
           REDIS_URL: redis://localhost:6379
+          JWT_SECRET: e2e-secret-key-32-chars-minimum-token!
+          NODE_ENV: test
+
+      - name: Run E2E Integration Suite (127 Tests)
+        run: pnpm run test:e2e
+        env:
+          DATABASE_URL: mongodb://localhost:27017/career-intelligence-os-e2e
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: e2e-secret-key-32-chars-minimum-token!
+          NODE_ENV: test

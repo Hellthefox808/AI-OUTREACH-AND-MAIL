@@ -4,24 +4,25 @@ on:
   push:
     branches: [main]
     paths:
-      - "packages/shared/**"
-      - "packages/database/**"
-      - "packages/ui/**"
-      - "package.json"
-      - "pnpm-workspace.yaml"
-      - "pnpm-lock.yaml"
-      - "turbo.json"
-      - ".github/workflows/ci-be.yml"
+      - 'packages/shared/**'
+      - 'packages/database/**'
+      - 'packages/ui/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - 'turbo.json'
+      - '.github/workflows/ci-shared.yml'
   pull_request:
     branches: [main]
     paths:
-      - "packages/shared/**"
-      - "packages/database/**"
-      - "packages/ui/**"
-      - "package.json"
-      - "pnpm-workspace.yaml"
-      - "pnpm-lock.yaml"
-      - "turbo.json"
+      - 'packages/shared/**'
+      - 'packages/database/**'
+      - 'packages/ui/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - 'turbo.json'
+      - '.github/workflows/ci-shared.yml'
 
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
@@ -29,6 +30,7 @@ env:
 
 jobs:
   ci:
+    name: Shared Packages Verification
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -48,8 +50,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck (all)
-        run: pnpm run typecheck
+      - name: Typecheck
+        run: pnpm --filter @career-intelligence/shared --filter @career-intelligence/database --filter @career-intelligence/ui typecheck
 
-      - name: Build (all)
+      - name: Build
         run: pnpm run build
+
+      - name: Unit tests
+        run: pnpm --filter @career-intelligence/database test
