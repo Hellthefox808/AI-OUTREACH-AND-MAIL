@@ -13,6 +13,7 @@ import { WorkspacesModule } from "./modules/workspaces/workspaces.module";
 import { CompaniesModule } from "./modules/companies/companies.module";
 import { RecruitersModule } from "./modules/recruiters/recruiters.module";
 import { JobsModule } from "./modules/jobs/jobs.module";
+import { AnalyticsModule } from "./modules/analytics/analytics.module";
 import { SeedModule } from "./modules/seed/seed.module";
 import { AuthGuard } from "./common/guards/auth.guard";
 import { RbacGuard } from "./common/guards/rbac.guard";
@@ -58,6 +59,7 @@ import { WorkspaceScopeGuard } from "./common/guards/workspace-scope.guard";
     CompaniesModule,
     RecruitersModule,
     JobsModule,
+    AnalyticsModule,
     SeedModule,
   ],
   controllers: [AppController],

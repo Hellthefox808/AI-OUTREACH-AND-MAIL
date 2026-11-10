@@ -110,4 +110,71 @@ export class JobRepository extends BaseRepository<JobPostingDocument> {
     }
     return query.exec();
   }
+
+  async getMetrics(workspaceId: string | Types.ObjectId) {
+    const wsId =
+      typeof workspaceId === "string" && Types.ObjectId.isValid(workspaceId)
+        ? new Types.ObjectId(workspaceId)
+        : workspaceId;
+
+    const [modeCounts, typeCounts, totalCount, activeCount] = await Promise.all([
+      this.model.aggregate([
+        { $match: { workspaceId: wsId, deletedAt: null } },
+        { $group: { _id: "$workMode", count: { $sum: 1 } } },
+      ]),
+      this.model.aggregate([
+        { $match: { workspaceId: wsId, deletedAt: null } },
+        { $group: { _id: "$type", count: { $sum: 1 } } },
+      ]),
+      this.model.countDocuments({ workspaceId: wsId, deletedAt: null }),
+      this.model.countDocuments({
+        workspaceId: wsId,
+        deletedAt: null,
+        isActive: true,
+      }),
+    ]);
+
+    const byWorkMode: Record<string, number> = {};
+    for (const item of modeCounts) {
+      if (item._id) byWorkMode[item._id] = item.count;
+    }
+
+    const byJobType: Record<string, number> = {};
+    for (const item of typeCounts) {
+      if (item._id) byJobType[item._id] = item.count;
+    }
+
+    return {
+      total: totalCount,
+      active: activeCount,
+      byWorkMode,
+      byJobType,
+    };
+  }
+
+  async getDailyTrend(workspaceId: string | Types.ObjectId, days: number = 7) {
+    const wsId =
+      typeof workspaceId === "string" && Types.ObjectId.isValid(workspaceId)
+        ? new Types.ObjectId(workspaceId)
+        : workspaceId;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    return this.model.aggregate([
+      {
+        $match: {
+          workspaceId: wsId,
+          deletedAt: null,
+          createdAt: { $gte: startDate },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+  }
 }

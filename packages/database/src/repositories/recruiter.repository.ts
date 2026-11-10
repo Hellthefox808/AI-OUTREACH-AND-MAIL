@@ -109,4 +109,74 @@ export class RecruiterRepository extends BaseRepository<RecruiterDocument> {
     }
     return query.exec();
   }
+
+  async getMetrics(workspaceId: string | Types.ObjectId) {
+    const wsId =
+      typeof workspaceId === "string" && Types.ObjectId.isValid(workspaceId)
+        ? new Types.ObjectId(workspaceId)
+        : workspaceId;
+
+    const [statusCounts, totalCount, withEmailCount] = await Promise.all([
+      this.model.aggregate([
+        { $match: { workspaceId: wsId, deletedAt: null } },
+        { $group: { _id: "$verificationStatus", count: { $sum: 1 } } },
+      ]),
+      this.model.countDocuments({ workspaceId: wsId, deletedAt: null }),
+      this.model.countDocuments({
+        workspaceId: wsId,
+        deletedAt: null,
+        email: { $ne: null },
+      }),
+    ]);
+
+    const byStatus: Record<string, number> = {};
+    let verifiedCount = 0;
+
+    for (const item of statusCounts) {
+      const key = item._id || "UNVERIFIED";
+      byStatus[key] = item.count;
+      if (key === "VERIFIED") {
+        verifiedCount += item.count;
+      }
+    }
+
+    const verificationRate =
+      totalCount > 0
+        ? Math.round((verifiedCount / totalCount) * 1000) / 10
+        : 0;
+
+    return {
+      total: totalCount,
+      verified: verifiedCount,
+      withEmail: withEmailCount,
+      verificationRate,
+      byStatus,
+    };
+  }
+
+  async getDailyTrend(workspaceId: string | Types.ObjectId, days: number = 7) {
+    const wsId =
+      typeof workspaceId === "string" && Types.ObjectId.isValid(workspaceId)
+        ? new Types.ObjectId(workspaceId)
+        : workspaceId;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    return this.model.aggregate([
+      {
+        $match: {
+          workspaceId: wsId,
+          deletedAt: null,
+          createdAt: { $gte: startDate },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+  }
 }

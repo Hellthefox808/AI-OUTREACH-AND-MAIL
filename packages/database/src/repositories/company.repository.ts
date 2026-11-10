@@ -87,4 +87,84 @@ export class CompanyRepository extends BaseRepository<CompanyDocument> {
     }
     return query.exec();
   }
+
+  async getMetrics(workspaceId: string | Types.ObjectId) {
+    const wsId =
+      typeof workspaceId === "string" && Types.ObjectId.isValid(workspaceId)
+        ? new Types.ObjectId(workspaceId)
+        : workspaceId;
+
+    const [tierCounts, totalCount, activeHiringCount] = await Promise.all([
+      this.model.aggregate([
+        { $match: { workspaceId: wsId, deletedAt: null } },
+        { $group: { _id: "$tier", count: { $sum: 1 } } },
+      ]),
+      this.model.countDocuments({ workspaceId: wsId, deletedAt: null }),
+      this.model.countDocuments({
+        workspaceId: wsId,
+        deletedAt: null,
+        hiringActivity: true,
+      }),
+    ]);
+
+    const tiers = { TIER_1: 0, TIER_2: 0, TIER_3: 0, UNASSIGNED: 0 };
+    for (const item of tierCounts) {
+      if (item._id && item._id in tiers) {
+        (tiers as any)[item._id] = item.count;
+      } else {
+        tiers.UNASSIGNED += item.count;
+      }
+    }
+
+    return {
+      total: totalCount,
+      activeHiring: activeHiringCount,
+      byTier: tiers,
+    };
+  }
+
+  async getIndustryBreakdown(
+    workspaceId: string | Types.ObjectId,
+    limit: number = 8
+  ) {
+    const wsId =
+      typeof workspaceId === "string" && Types.ObjectId.isValid(workspaceId)
+        ? new Types.ObjectId(workspaceId)
+        : workspaceId;
+
+    return this.model.aggregate([
+      { $match: { workspaceId: wsId, deletedAt: null } },
+      { $unwind: "$industries" },
+      { $group: { _id: "$industries", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: limit },
+      { $project: { industry: "$_id", count: 1, _id: 0 } },
+    ]);
+  }
+
+  async getDailyTrend(workspaceId: string | Types.ObjectId, days: number = 7) {
+    const wsId =
+      typeof workspaceId === "string" && Types.ObjectId.isValid(workspaceId)
+        ? new Types.ObjectId(workspaceId)
+        : workspaceId;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    return this.model.aggregate([
+      {
+        $match: {
+          workspaceId: wsId,
+          deletedAt: null,
+          createdAt: { $gte: startDate },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+  }
 }

@@ -580,3 +580,55 @@ export class ValidationError extends AppError {
     super('VALIDATION_ERROR', 400, message, details);
   }
 }
+
+/* ------------------------------------------------------------------ */
+/*  Analytics & Data Reporting Schemas                                */
+/* ------------------------------------------------------------------ */
+
+export interface TrendDataPoint {
+  date: string;
+  count: number;
+}
+
+export interface WorkspaceAnalyticsOverview {
+  workspaceId: string;
+  companies: {
+    total: number;
+    activeHiring: number;
+    byTier: {
+      TIER_1: number;
+      TIER_2: number;
+      TIER_3: number;
+      UNASSIGNED: number;
+    };
+    trend: TrendDataPoint[];
+  };
+  recruiters: {
+    total: number;
+    verified: number;
+    withEmail: number;
+    verificationRate: number;
+    byStatus: Record<string, number>;
+    trend: TrendDataPoint[];
+  };
+  jobs: {
+    total: number;
+    active: number;
+    byWorkMode: Record<string, number>;
+    byJobType: Record<string, number>;
+    trend: TrendDataPoint[];
+  };
+  systemHealth: {
+    status: 'OPTIMAL' | 'DEGRADED' | 'OPERATIONAL';
+    deliverabilityIndex: number;
+    lastSynchronizedAt: string;
+  };
+}
+
+export interface WorkspaceAnalyticsBreakdown {
+  workspaceId: string;
+  topIndustries: Array<{ industry: string; count: number }>;
+  recruiterVerificationDistribution: Array<{ status: string; count: number; percentage: number }>;
+  jobModeDistribution: Array<{ mode: string; count: number; percentage: number }>;
+}
+

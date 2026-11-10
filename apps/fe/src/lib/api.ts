@@ -113,6 +113,53 @@ export interface JobItem {
   createdAt: string;
 }
 
+export interface TrendDataPoint {
+  date: string;
+  count: number;
+}
+
+export interface WorkspaceAnalyticsOverview {
+  workspaceId: string;
+  companies: {
+    total: number;
+    activeHiring: number;
+    byTier: {
+      TIER_1: number;
+      TIER_2: number;
+      TIER_3: number;
+      UNASSIGNED: number;
+    };
+    trend: TrendDataPoint[];
+  };
+  recruiters: {
+    total: number;
+    verified: number;
+    withEmail: number;
+    verificationRate: number;
+    byStatus: Record<string, number>;
+    trend: TrendDataPoint[];
+  };
+  jobs: {
+    total: number;
+    active: number;
+    byWorkMode: Record<string, number>;
+    byJobType: Record<string, number>;
+    trend: TrendDataPoint[];
+  };
+  systemHealth: {
+    status: 'OPTIMAL' | 'DEGRADED' | 'OPERATIONAL';
+    deliverabilityIndex: number;
+    lastSynchronizedAt: string;
+  };
+}
+
+export interface WorkspaceAnalyticsBreakdown {
+  workspaceId: string;
+  topIndustries: Array<{ industry: string; count: number }>;
+  recruiterVerificationDistribution: Array<{ status: string; count: number; percentage: number }>;
+  jobModeDistribution: Array<{ mode: string; count: number; percentage: number }>;
+}
+
 export const api = {
   auth: {
     login: (credentials: { email: string; password: string }) =>
@@ -187,6 +234,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+  },
+
+  analytics: {
+    getOverview: () => request<WorkspaceAnalyticsOverview>('/v1/analytics/overview'),
+    getBreakdown: () => request<WorkspaceAnalyticsBreakdown>('/v1/analytics/breakdown'),
   },
 };
 
