@@ -42,18 +42,48 @@ export class JobsController {
 
   @Get()
   @Permissions(PERMISSIONS.JOB_READ)
-  @ApiOperation({ summary: "List workspace job postings" })
+  @ApiOperation({ summary: "List workspace job postings with filtering" })
   @ApiQuery({ name: "limit", required: false, type: Number })
   @ApiQuery({ name: "cursor", required: false, type: String })
+  @ApiQuery({ name: "search", required: false, type: String })
+  @ApiQuery({ name: "workMode", required: false, type: String })
+  @ApiQuery({ name: "type", required: false, type: String })
+  @ApiQuery({ name: "isActive", required: false, type: Boolean })
   @ApiResponse({ status: 200, description: "Job postings list retrieved" })
   async list(
     @CurrentUser() user: any,
     @Query("limit") limit?: string,
     @Query("cursor") cursor?: string,
+    @Query("search") search?: string,
+    @Query("workMode") workMode?: string,
+    @Query("type") type?: string,
+    @Query("isActive") isActive?: string,
   ) {
     const workspaceId = user.workspaceIds[0];
     const parsedLimit = limit ? parseInt(limit, 10) : 50;
-    return this.jobs.list(workspaceId, { limit: parsedLimit, cursor });
+    const activeBool = isActive !== undefined ? isActive === "true" : undefined;
+    return this.jobs.list(
+      workspaceId,
+      { limit: parsedLimit, cursor },
+      { search, workMode, type, isActive: activeBool }
+    );
+  }
+
+  @Get("export")
+  @Permissions(PERMISSIONS.JOB_READ)
+  @ApiOperation({ summary: "Export job postings as CSV or JSON" })
+  @ApiQuery({ name: "format", required: false, enum: ["json", "csv"] })
+  @ApiQuery({ name: "search", required: false, type: String })
+  @ApiQuery({ name: "workMode", required: false, type: String })
+  @ApiResponse({ status: 200, description: "Exported job postings" })
+  async export(
+    @CurrentUser() user: any,
+    @Query("format") format: "json" | "csv" = "json",
+    @Query("search") search?: string,
+    @Query("workMode") workMode?: string,
+  ) {
+    const workspaceId = user.workspaceIds[0];
+    return this.jobs.export(workspaceId, { search, workMode }, format);
   }
 
   @Get(":id")

@@ -114,8 +114,9 @@ export class AnalyticsService {
   }
 
   async getBreakdown(workspaceId: string): Promise<WorkspaceAnalyticsBreakdown> {
-    const [topIndustries, recruiterMetrics, jobMetrics] = await Promise.all([
+    const [topIndustries, topSkills, recruiterMetrics, jobMetrics] = await Promise.all([
       this.companies.getIndustryBreakdown(workspaceId, 8),
+      this.jobs.getSkillBreakdown(workspaceId, 8),
       this.recruiters.getMetrics(workspaceId),
       this.jobs.getMetrics(workspaceId),
     ]);
@@ -141,8 +142,105 @@ export class AnalyticsService {
     return {
       workspaceId,
       topIndustries: topIndustries || [],
+      topSkills: topSkills || [],
       recruiterVerificationDistribution,
       jobModeDistribution,
+    };
+  }
+
+  async chat(
+    workspaceId: string,
+    message: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _history?: Array<{ role: "user" | "model"; content: string }>
+  ) {
+    const [overview, breakdown] = await Promise.all([
+      this.getOverview(workspaceId),
+      this.getBreakdown(workspaceId),
+    ]);
+
+    const lower = message.toLowerCase();
+    let reply = "";
+    let thoughts = "";
+    let suggestions: string[] = [];
+
+    if (lower.includes("hiring") || lower.includes("company") || lower.includes("companies")) {
+      thoughts = "Evaluated company directory and tier distributions within workspace.";
+      reply = `### Company Intelligence Summary
+- **Total Tracked Companies:** ${overview.companies.total}
+- **Actively Hiring:** ${overview.companies.activeHiring} (${overview.companies.total > 0 ? Math.round((overview.companies.activeHiring / overview.companies.total) * 100) : 0}%)
+- **Tier 1 Strategic Accounts:** ${overview.companies.byTier.TIER_1}
+- **Tier 2 High-Growth Accounts:** ${overview.companies.byTier.TIER_2}
+- **Tier 3 Indexed Accounts:** ${overview.companies.byTier.TIER_3}
+
+**Top Hiring Sectors:** ${
+        breakdown.topIndustries.length > 0
+          ? breakdown.topIndustries.map((i) => `${i.industry} (${i.count})`).join(", ")
+          : "None categorized yet"
+      }`;
+      suggestions = [
+        "What is our recruiter verification rate?",
+        "Show remote job opportunities",
+        "Which skills are in highest demand?",
+      ];
+    } else if (lower.includes("recruiter") || lower.includes("email") || lower.includes("deliverability") || lower.includes("verify")) {
+      thoughts = "Queried talent acquisition lead deliverability and verification status distribution.";
+      reply = `### Recruiter Reach & Verification Matrix
+- **Total Recruiter Contacts:** ${overview.recruiters.total}
+- **Deliverability-Verified Emails:** ${overview.recruiters.verified}
+- **Verification Rate:** **${overview.recruiters.verificationRate}%**
+- **Composite Deliverability Health Index:** **${overview.systemHealth.deliverabilityIndex}% (${overview.systemHealth.status})**
+
+**Deliverability Status Breakdown:**
+${breakdown.recruiterVerificationDistribution
+  .map((s) => `- \`${s.status}\`: ${s.count} contacts (${s.percentage}%)`)
+  .join("\n")}`;
+      suggestions = [
+        "How many companies are actively hiring?",
+        "Export verified recruiters to CSV",
+        "View active career requisitions",
+      ];
+    } else if (lower.includes("job") || lower.includes("remote") || lower.includes("skill") || lower.includes("opening")) {
+      thoughts = "Analyzed open requisitions, work mode split, and required skill frequencies.";
+      reply = `### Opportunity & Skill Intelligence
+- **Total Career Requisitions:** ${overview.jobs.total}
+- **Active Openings:** ${overview.jobs.active}
+- **Work Mode Distribution:**
+  - Remote: ${overview.jobs.byWorkMode["REMOTE"] || 0}
+  - Hybrid: ${overview.jobs.byWorkMode["HYBRID"] || 0}
+  - Onsite: ${overview.jobs.byWorkMode["ONSITE"] || 0}
+
+**Top In-Demand Skills:**
+${
+  breakdown.topSkills.length > 0
+    ? breakdown.topSkills.map((s) => `- **${s.skill}**: required in ${s.count} postings`).join("\n")
+    : "No skill tags detected in current postings."
+}`;
+      suggestions = [
+        "Summarize company hiring activity",
+        "What is our deliverability health index?",
+        "Filter for remote full-time positions",
+      ];
+    } else {
+      thoughts = "Synthesized broad executive overview across talent, companies, and open positions.";
+      reply = `### Executive Career Intelligence Overview
+- **Tracked Accounts:** ${overview.companies.total} (${overview.companies.activeHiring} actively hiring)
+- **Recruiter Contacts:** ${overview.recruiters.total} (${overview.recruiters.verificationRate}% verified)
+- **Active Positions:** ${overview.jobs.active}
+- **Deliverability Health:** ${overview.systemHealth.deliverabilityIndex}% (${overview.systemHealth.status})
+
+Select a quick action below to drill deeper into the workspace dataset.`;
+      suggestions = [
+        "How many companies are hiring?",
+        "What is our recruiter verification rate?",
+        "Show in-demand skills and remote jobs",
+      ];
+    }
+
+    return {
+      reply,
+      thoughts,
+      suggestions,
     };
   }
 }

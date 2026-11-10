@@ -156,8 +156,15 @@ export interface WorkspaceAnalyticsOverview {
 export interface WorkspaceAnalyticsBreakdown {
   workspaceId: string;
   topIndustries: Array<{ industry: string; count: number }>;
+  topSkills: Array<{ skill: string; count: number }>;
   recruiterVerificationDistribution: Array<{ status: string; count: number; percentage: number }>;
   jobModeDistribution: Array<{ mode: string; count: number; percentage: number }>;
+}
+
+export interface DataChatResponse {
+  reply: string;
+  thoughts?: string;
+  suggestions: string[];
 }
 
 export const api = {
@@ -183,10 +190,22 @@ export const api = {
   },
 
   companies: {
-    list: (params?: { limit?: number; cursor?: string }) => {
+    list: (params?: {
+      limit?: number;
+      cursor?: string;
+      search?: string;
+      tier?: string;
+      verificationStatus?: string;
+      hiringActivity?: boolean;
+    }) => {
       const search = new URLSearchParams();
       if (params?.limit) search.set('limit', params.limit.toString());
       if (params?.cursor) search.set('cursor', params.cursor);
+      if (params?.search) search.set('search', params.search);
+      if (params?.tier) search.set('tier', params.tier);
+      if (params?.verificationStatus) search.set('verificationStatus', params.verificationStatus);
+      if (params?.hiringActivity !== undefined)
+        search.set('hiringActivity', params.hiringActivity.toString());
       const query = search.toString();
       return request<PaginatedResponse<CompanyItem>>(`/v1/companies${query ? `?${query}` : ''}`);
     },
@@ -198,13 +217,30 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+
+    export: (format: 'json' | 'csv' = 'csv', filters?: { search?: string; tier?: string }) => {
+      const search = new URLSearchParams();
+      search.set('format', format);
+      if (filters?.search) search.set('search', filters.search);
+      if (filters?.tier) search.set('tier', filters.tier);
+      return request<string | CompanyItem[]>(`/v1/companies/export?${search.toString()}`);
+    },
   },
 
   recruiters: {
-    list: (params?: { limit?: number; cursor?: string }) => {
+    list: (params?: {
+      limit?: number;
+      cursor?: string;
+      search?: string;
+      verificationStatus?: string;
+      companyId?: string;
+    }) => {
       const search = new URLSearchParams();
       if (params?.limit) search.set('limit', params.limit.toString());
       if (params?.cursor) search.set('cursor', params.cursor);
+      if (params?.search) search.set('search', params.search);
+      if (params?.verificationStatus) search.set('verificationStatus', params.verificationStatus);
+      if (params?.companyId) search.set('companyId', params.companyId);
       const query = search.toString();
       return request<PaginatedResponse<RecruiterItem>>(`/v1/recruiters${query ? `?${query}` : ''}`);
     },
@@ -216,13 +252,35 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+
+    export: (
+      format: 'json' | 'csv' = 'csv',
+      filters?: { search?: string; verificationStatus?: string }
+    ) => {
+      const search = new URLSearchParams();
+      search.set('format', format);
+      if (filters?.search) search.set('search', filters.search);
+      if (filters?.verificationStatus) search.set('verificationStatus', filters.verificationStatus);
+      return request<string | RecruiterItem[]>(`/v1/recruiters/export?${search.toString()}`);
+    },
   },
 
   jobs: {
-    list: (params?: { limit?: number; cursor?: string }) => {
+    list: (params?: {
+      limit?: number;
+      cursor?: string;
+      search?: string;
+      workMode?: string;
+      type?: string;
+      isActive?: boolean;
+    }) => {
       const search = new URLSearchParams();
       if (params?.limit) search.set('limit', params.limit.toString());
       if (params?.cursor) search.set('cursor', params.cursor);
+      if (params?.search) search.set('search', params.search);
+      if (params?.workMode) search.set('workMode', params.workMode);
+      if (params?.type) search.set('type', params.type);
+      if (params?.isActive !== undefined) search.set('isActive', params.isActive.toString());
       const query = search.toString();
       return request<PaginatedResponse<JobItem>>(`/v1/jobs${query ? `?${query}` : ''}`);
     },
@@ -234,11 +292,27 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+
+    export: (
+      format: 'json' | 'csv' = 'csv',
+      filters?: { search?: string; workMode?: string }
+    ) => {
+      const search = new URLSearchParams();
+      search.set('format', format);
+      if (filters?.search) search.set('search', filters.search);
+      if (filters?.workMode) search.set('workMode', filters.workMode);
+      return request<string | JobItem[]>(`/v1/jobs/export?${search.toString()}`);
+    },
   },
 
   analytics: {
     getOverview: () => request<WorkspaceAnalyticsOverview>('/v1/analytics/overview'),
     getBreakdown: () => request<WorkspaceAnalyticsBreakdown>('/v1/analytics/breakdown'),
+    chat: (message: string, history?: Array<{ role: 'user' | 'model'; content: string }>) =>
+      request<DataChatResponse>('/v1/analytics/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message, history }),
+      }),
   },
 };
 

@@ -42,18 +42,49 @@ export class RecruitersController {
 
   @Get()
   @Permissions(PERMISSIONS.RECRUITER_READ)
-  @ApiOperation({ summary: "List workspace recruiters" })
+  @ApiOperation({ summary: "List workspace recruiters with filtering" })
   @ApiQuery({ name: "limit", required: false, type: Number })
   @ApiQuery({ name: "cursor", required: false, type: String })
+  @ApiQuery({ name: "search", required: false, type: String })
+  @ApiQuery({ name: "verificationStatus", required: false, type: String })
+  @ApiQuery({ name: "companyId", required: false, type: String })
   @ApiResponse({ status: 200, description: "Recruiter list retrieved" })
   async list(
     @CurrentUser() user: any,
     @Query("limit") limit?: string,
     @Query("cursor") cursor?: string,
+    @Query("search") search?: string,
+    @Query("verificationStatus") verificationStatus?: string,
+    @Query("companyId") companyId?: string,
   ) {
     const workspaceId = user.workspaceIds[0];
     const parsedLimit = limit ? parseInt(limit, 10) : 50;
-    return this.recruiters.list(workspaceId, { limit: parsedLimit, cursor });
+    return this.recruiters.list(
+      workspaceId,
+      { limit: parsedLimit, cursor },
+      { search, verificationStatus, companyId }
+    );
+  }
+
+  @Get("export")
+  @Permissions(PERMISSIONS.RECRUITER_READ)
+  @ApiOperation({ summary: "Export recruiter contacts as CSV or JSON" })
+  @ApiQuery({ name: "format", required: false, enum: ["json", "csv"] })
+  @ApiQuery({ name: "search", required: false, type: String })
+  @ApiQuery({ name: "verificationStatus", required: false, type: String })
+  @ApiResponse({ status: 200, description: "Exported recruiter contacts" })
+  async export(
+    @CurrentUser() user: any,
+    @Query("format") format: "json" | "csv" = "json",
+    @Query("search") search?: string,
+    @Query("verificationStatus") verificationStatus?: string,
+  ) {
+    const workspaceId = user.workspaceIds[0];
+    return this.recruiters.export(
+      workspaceId,
+      { search, verificationStatus },
+      format
+    );
   }
 
   @Get(":id")

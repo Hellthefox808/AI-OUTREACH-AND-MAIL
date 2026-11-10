@@ -628,7 +628,19 @@ export interface WorkspaceAnalyticsOverview {
 export interface WorkspaceAnalyticsBreakdown {
   workspaceId: string;
   topIndustries: Array<{ industry: string; count: number }>;
+  topSkills: Array<{ skill: string; count: number }>;
   recruiterVerificationDistribution: Array<{ status: string; count: number; percentage: number }>;
   jobModeDistribution: Array<{ mode: string; count: number; percentage: number }>;
+}
+
+export interface DataChatRequest {
+  message: string;
+  history?: Array<{ role: 'user' | 'model'; content: string }>;
+}
+
+export interface DataChatResponse {
+  reply: string;
+  thoughts?: string;
+  suggestions: string[];
 }
 

@@ -9,6 +9,7 @@ import { Types } from "mongoose";
 import {
   CompanyRepository,
   type CompanyDocument,
+  type CompanyFilterOptions,
 } from "@career-intelligence/database";
 import { NotFoundError } from "@career-intelligence/shared";
 
@@ -18,9 +19,42 @@ export class CompaniesService {
 
   async list(
     workspaceId: string,
-    pagination: { limit?: number; cursor?: string } = {}
+    pagination: { limit?: number; cursor?: string } = {},
+    filters?: CompanyFilterOptions
   ) {
-    return this.companies.findByWorkspace(workspaceId, pagination);
+    return this.companies.findByWorkspace(workspaceId, pagination, filters);
+  }
+
+  async export(
+    workspaceId: string,
+    filters?: CompanyFilterOptions,
+    format: "json" | "csv" = "json"
+  ) {
+    const records = await this.companies.exportAll(workspaceId, filters);
+    if (format === "csv") {
+      const headers = [
+        "_id",
+        "displayName",
+        "legalName",
+        "domain",
+        "tier",
+        "verificationStatus",
+        "createdAt",
+      ];
+      const rows = records.map((r: any) =>
+        [
+          r._id,
+          `"${(r.displayName || "").replace(/"/g, '""')}"`,
+          `"${(r.legalName || "").replace(/"/g, '""')}"`,
+          r.domain,
+          r.tier || "",
+          r.verificationStatus || "",
+          r.createdAt ? new Date(r.createdAt).toISOString() : "",
+        ].join(",")
+      );
+      return [headers.join(","), ...rows].join("\n");
+    }
+    return records;
   }
 
   async getById(id: string, workspaceId: string) {

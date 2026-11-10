@@ -9,10 +9,46 @@ import { PaginationInput, PaginatedResult } from "@career-intelligence/shared";
 import { Company, CompanyDocument } from "../models/company.model";
 import { BaseRepository } from "./base.repository";
 
+export interface CompanyFilterOptions {
+  search?: string;
+  tier?: string;
+  verificationStatus?: string;
+  hiringActivity?: boolean;
+}
+
 @Injectable()
 export class CompanyRepository extends BaseRepository<CompanyDocument> {
   constructor(@InjectModel(Company.name) model: Model<CompanyDocument>) {
     super(model);
+  }
+
+  private buildQueryFilter(
+    workspaceId: string | Types.ObjectId,
+    filters?: CompanyFilterOptions
+  ) {
+    const filter: Record<string, unknown> = {
+      ...this.workspaceFilter(workspaceId),
+    };
+
+    if (filters?.tier) {
+      filter.tier = filters.tier;
+    }
+    if (filters?.verificationStatus) {
+      filter.verificationStatus = filters.verificationStatus;
+    }
+    if (filters?.hiringActivity !== undefined) {
+      filter.hiringActivity = filters.hiringActivity;
+    }
+    if (filters?.search && filters.search.trim()) {
+      const regex = new RegExp(filters.search.trim(), "i");
+      filter.$or = [
+        { displayName: regex },
+        { legalName: regex },
+        { domain: regex },
+      ];
+    }
+
+    return filter;
   }
 
   async findByDomain(domain: string, workspaceId: string | Types.ObjectId, session?: ClientSession) {
@@ -36,15 +72,31 @@ export class CompanyRepository extends BaseRepository<CompanyDocument> {
   async findByWorkspace(
     workspaceId: string | Types.ObjectId,
     pagination: PaginationInput = {},
+    filters?: CompanyFilterOptions,
     session?: ClientSession
   ): Promise<PaginatedResult<CompanyDocument>> {
+    const filter = this.buildQueryFilter(workspaceId, filters);
     return this.paginate(
-      this.workspaceFilter(workspaceId),
+      filter as any,
       pagination,
       "_id",
       -1,
       session
     );
+  }
+
+  async exportAll(
+    workspaceId: string | Types.ObjectId,
+    filters?: CompanyFilterOptions,
+    limit: number = 1000
+  ) {
+    const filter = this.buildQueryFilter(workspaceId, filters);
+    return this.model
+      .find(filter as any)
+      .sort({ _id: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
   }
 
   async create(data: Partial<CompanyDocument>, options?: { session?: ClientSession }) {

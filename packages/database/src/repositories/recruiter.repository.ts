@@ -9,24 +9,76 @@ import { PaginationInput, PaginatedResult } from "@career-intelligence/shared";
 import { Recruiter, RecruiterDocument } from "../models/recruiter.model";
 import { BaseRepository } from "./base.repository";
 
+export interface RecruiterFilterOptions {
+  search?: string;
+  verificationStatus?: string;
+  companyId?: string | Types.ObjectId;
+}
+
 @Injectable()
 export class RecruiterRepository extends BaseRepository<RecruiterDocument> {
   constructor(@InjectModel(Recruiter.name) model: Model<RecruiterDocument>) {
     super(model);
   }
 
+  private buildQueryFilter(
+    workspaceId: string | Types.ObjectId,
+    filters?: RecruiterFilterOptions
+  ) {
+    const filter: Record<string, unknown> = {
+      ...this.workspaceFilter(workspaceId),
+    };
+
+    if (filters?.verificationStatus) {
+      filter.verificationStatus = filters.verificationStatus;
+    }
+    if (filters?.companyId) {
+      filter.companyId =
+        typeof filters.companyId === "string" && Types.ObjectId.isValid(filters.companyId)
+          ? new Types.ObjectId(filters.companyId)
+          : filters.companyId;
+    }
+    if (filters?.search && filters.search.trim()) {
+      const regex = new RegExp(filters.search.trim(), "i");
+      filter.$or = [
+        { name: regex },
+        { email: regex },
+        { designation: regex },
+        { department: regex },
+      ];
+    }
+
+    return filter;
+  }
+
   async findByWorkspace(
     workspaceId: string | Types.ObjectId,
     pagination: PaginationInput = {},
+    filters?: RecruiterFilterOptions,
     session?: ClientSession
   ): Promise<PaginatedResult<RecruiterDocument>> {
+    const filter = this.buildQueryFilter(workspaceId, filters);
     return this.paginate(
-      this.workspaceFilter(workspaceId),
+      filter as any,
       pagination,
       "_id",
       -1,
       session
     );
+  }
+
+  async exportAll(
+    workspaceId: string | Types.ObjectId,
+    filters?: RecruiterFilterOptions,
+    limit: number = 1000
+  ) {
+    const filter = this.buildQueryFilter(workspaceId, filters);
+    return this.model
+      .find(filter as any)
+      .sort({ _id: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
   }
 
   async findByEmail(email: string, workspaceId: string | Types.ObjectId, session?: ClientSession) {

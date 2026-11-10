@@ -4,7 +4,7 @@
  * Workspace-scoped analytics and data aggregation endpoints.
  */
 
-import { Controller, Get } from "@nestjs/common";
+import { Controller, Get, Post, Body } from "@nestjs/common";
 import {
   ApiTags,
   ApiOperation,
@@ -13,7 +13,7 @@ import {
 } from "@nestjs/swagger";
 import { AnalyticsService } from "./analytics.service";
 import { Permissions, CurrentUser } from "../../common/decorators";
-import { PERMISSIONS } from "@career-intelligence/shared";
+import { PERMISSIONS, type DataChatRequest } from "@career-intelligence/shared";
 
 @ApiTags("analytics")
 @ApiBearerAuth()
@@ -43,5 +43,20 @@ export class AnalyticsController {
   async getBreakdown(@CurrentUser() user: any) {
     const workspaceId = user.workspaceIds?.[0];
     return this.analytics.getBreakdown(workspaceId);
+  }
+
+  @Post("chat")
+  @Permissions(PERMISSIONS.ANALYTICS_READ)
+  @ApiOperation({ summary: "Natural language query engine for workspace data" })
+  @ApiResponse({
+    status: 200,
+    description: "Analytical insights and suggested queries",
+  })
+  async chat(
+    @CurrentUser() user: any,
+    @Body() body: DataChatRequest
+  ) {
+    const workspaceId = user.workspaceIds?.[0];
+    return this.analytics.chat(workspaceId, body.message, body.history);
   }
 }

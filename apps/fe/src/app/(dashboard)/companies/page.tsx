@@ -23,6 +23,8 @@ export default function CompaniesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTier, setSelectedTier] = useState<'ALL' | 'TIER_1' | 'TIER_2' | 'TIER_3'>('ALL');
+  const [isExporting, setIsExporting] = useState(false);
 
   // Form fields
   const [displayName, setDisplayName] = useState('');
@@ -33,7 +35,12 @@ export default function CompaniesPage() {
   const loadCompanies = async (cursor?: string) => {
     try {
       setIsLoading(true);
-      const res = await api.companies.list({ limit: 15, cursor });
+      const res = await api.companies.list({
+        limit: 15,
+        cursor,
+        tier: selectedTier !== 'ALL' ? selectedTier : undefined,
+        search: searchQuery.trim() || undefined,
+      });
       setCompanies(res.items || []);
       setNextCursor(res.nextCursor);
       setHasMore(res.hasMore);
@@ -46,7 +53,35 @@ export default function CompaniesPage() {
 
   useEffect(() => {
     loadCompanies();
-  }, []);
+  }, [selectedTier]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    loadCompanies();
+  };
+
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+      const csvData = await api.companies.export('csv', {
+        tier: selectedTier !== 'ALL' ? selectedTier : undefined,
+        search: searchQuery.trim() || undefined,
+      });
+      if (typeof csvData === 'string') {
+        const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `companies-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const handleCreateCompany = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,30 +122,58 @@ export default function CompaniesPage() {
   return (
     <div className="space-y-6 max-w-7xl animate-fade-in">
       {/* Top Action Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-white">Target Companies</h2>
           <p className="text-xs text-slate-400">
             Track, enrich, and map employer hierarchies for recruitment intelligence
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Input
-            placeholder="Filter companies..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-48 sm:w-64 h-9 text-xs"
-            leftIcon={
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="8" />
-                <path d="M21 21l-4.35-4.35" />
-              </svg>
-            }
-          />
+        <div className="flex flex-wrap items-center gap-3">
+          <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
+            <Input
+              placeholder="Filter companies..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-44 sm:w-60 h-9 text-xs"
+              leftIcon={
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
+              }
+            />
+          </form>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            isLoading={isExporting}
+            className="text-xs"
+          >
+            ↓ Export CSV
+          </Button>
           <Button variant="crystal" size="sm" onClick={() => setShowCreateModal(true)}>
             + Add Company
           </Button>
         </div>
+      </div>
+
+      {/* Tier Filter Toolbar */}
+      <div className="flex items-center gap-2 border-b border-white/[0.08] pb-3">
+        {(['ALL', 'TIER_1', 'TIER_2', 'TIER_3'] as const).map((tier) => (
+          <button
+            key={tier}
+            onClick={() => setSelectedTier(tier)}
+            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all duration-160 ${
+              selectedTier === tier
+                ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30 shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
+            }`}
+          >
+            {tier === 'ALL' ? 'All Tiers' : tier.replace('_', ' ')}
+          </button>
+        ))}
       </div>
 
       {/* Layer 5: Spatial Modal for Company Creation */}

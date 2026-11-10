@@ -50,6 +50,10 @@ describe("AnalyticsService", () => {
       getDailyTrend: vi.fn().mockResolvedValue([
         { _id: new Date().toISOString().split("T")[0], count: 2 },
       ]),
+      getSkillBreakdown: vi.fn().mockResolvedValue([
+        { skill: "TypeScript", count: 6 },
+        { skill: "Node.js", count: 4 },
+      ]),
     };
 
     service = new AnalyticsService(mockCompanies, mockRecruiters, mockJobs);
@@ -82,6 +86,8 @@ describe("AnalyticsService", () => {
     expect(result.workspaceId).toBe("ws-123");
     expect(result.topIndustries.length).toBe(2);
     expect(result.topIndustries[0]?.industry).toBe("FinTech");
+    expect(result.topSkills.length).toBe(2);
+    expect(result.topSkills[0]?.skill).toBe("TypeScript");
 
     expect(result.recruiterVerificationDistribution.length).toBe(2);
     const verifiedItem = result.recruiterVerificationDistribution.find(
@@ -90,5 +96,13 @@ describe("AnalyticsService", () => {
     expect(verifiedItem?.percentage).toBe(75);
 
     expect(result.jobModeDistribution.length).toBe(2);
+  });
+
+  it("answers natural language questions with contextual insights and suggestions", async () => {
+    const chatResult = await service.chat("ws-123", "How many companies are actively hiring?");
+
+    expect(chatResult.reply).toContain("Company Intelligence Summary");
+    expect(chatResult.reply).toContain("**Actively Hiring:** 5");
+    expect(chatResult.suggestions.length).toBeGreaterThan(0);
   });
 });

@@ -34,10 +34,17 @@ export default function RecruitersPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  const [isExporting, setIsExporting] = useState(false);
+
   const loadRecruiters = async (cursor?: string) => {
     try {
       setIsLoading(true);
-      const res = await api.recruiters.list({ limit: 15, cursor });
+      const res = await api.recruiters.list({
+        limit: 15,
+        cursor,
+        verificationStatus: selectedFilter !== 'ALL' ? selectedFilter : undefined,
+        search: searchQuery.trim() || undefined,
+      });
       setRecruiters(res.items || []);
       setNextCursor(res.nextCursor);
       setHasMore(res.hasMore);
@@ -45,6 +52,38 @@ export default function RecruitersPage() {
       setRecruiters([]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRecruiters();
+  }, [selectedFilter]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    loadRecruiters();
+  };
+
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+      const csvData = await api.recruiters.export('csv', {
+        verificationStatus: selectedFilter !== 'ALL' ? selectedFilter : undefined,
+        search: searchQuery.trim() || undefined,
+      });
+      if (typeof csvData === 'string') {
+        const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `recruiters-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -127,26 +166,37 @@ export default function RecruitersPage() {
   return (
     <div className="space-y-6 max-w-7xl animate-fade-in">
       {/* Top Action Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-white">Recruiter Discovery</h2>
           <p className="text-xs text-slate-400">
             Talent acquisition contacts with multi-stage verification & deliverability scoring
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Input
-            placeholder="Search recruiters..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-48 sm:w-60 h-9 text-xs"
-            leftIcon={
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="8" />
-                <path d="M21 21l-4.35-4.35" />
-              </svg>
-            }
-          />
+        <div className="flex flex-wrap items-center gap-3">
+          <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
+            <Input
+              placeholder="Search recruiters..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-44 sm:w-60 h-9 text-xs"
+              leftIcon={
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
+              }
+            />
+          </form>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            isLoading={isExporting}
+            className="text-xs"
+          >
+            ↓ Export CSV
+          </Button>
           <Button variant="crystal" size="sm" onClick={() => setShowCreateModal(true)}>
             + Add Recruiter
           </Button>

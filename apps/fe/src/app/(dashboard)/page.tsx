@@ -18,7 +18,9 @@ import {
   RecruiterItem,
   JobItem,
   WorkspaceAnalyticsOverview,
+  WorkspaceAnalyticsBreakdown,
 } from '../../lib/api';
+import { DataChatDrawer } from '../../components/data-chat-drawer';
 
 function formatDate(dateStr?: string | Date): string {
   if (!dateStr) return 'N/A';
@@ -39,25 +41,29 @@ type SelectedEntity =
 
 export default function DashboardOverviewPage() {
   const [overview, setOverview] = useState<WorkspaceAnalyticsOverview | null>(null);
+  const [breakdown, setBreakdown] = useState<WorkspaceAnalyticsBreakdown | null>(null);
   const [companies, setCompanies] = useState<CompanyItem[]>([]);
   const [recruiters, setRecruiters] = useState<RecruiterItem[]>([]);
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedEntity, setSelectedEntity] = useState<SelectedEntity>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'companies' | 'recruiters' | 'jobs'>('all');
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   useEffect(() => {
     async function loadData() {
       try {
         setIsLoading(true);
-        const [overviewRes, compRes, recRes, jobRes] = await Promise.allSettled([
+        const [overviewRes, breakdownRes, compRes, recRes, jobRes] = await Promise.allSettled([
           api.analytics.getOverview(),
+          api.analytics.getBreakdown(),
           api.companies.list({ limit: 8 }),
           api.recruiters.list({ limit: 8 }),
           api.jobs.list({ limit: 8 }),
         ]);
 
         if (overviewRes.status === 'fulfilled') setOverview(overviewRes.value);
+        if (breakdownRes.status === 'fulfilled') setBreakdown(breakdownRes.value);
         if (compRes.status === 'fulfilled') setCompanies(compRes.value.items || []);
         if (recRes.status === 'fulfilled') setRecruiters(recRes.value.items || []);
         if (jobRes.status === 'fulfilled') setJobs(jobRes.value.items || []);
@@ -92,6 +98,14 @@ export default function DashboardOverviewPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            variant="crystal"
+            size="sm"
+            onClick={() => setIsChatOpen(true)}
+            className="border-sky-400/40 bg-sky-500/20 text-sky-300 shadow-[0_0_12px_rgba(56,189,248,0.25)] hover:bg-sky-500/30"
+          >
+            ✦ AI Data Chat
+          </Button>
           <Link href="/companies">
             <Button variant="crystal" size="sm">
               + New Company
@@ -156,6 +170,111 @@ export default function DashboardOverviewPage() {
           sparkline={[82, 85, 87, 88, 92, 94, overview?.systemHealth.deliverabilityIndex ?? 95]}
         />
       </div>
+
+      {/* Sector Intelligence & Skill Demand Breakdowns */}
+      {breakdown && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Top Hiring Sectors */}
+          <Card material="frosted" className="border-white/[0.08] p-5 space-y-3">
+            <div className="flex items-center justify-between border-b border-white/[0.06] pb-2.5">
+              <h3 className="text-xs font-bold tracking-tight text-white uppercase">Top Hiring Sectors</h3>
+              <Badge variant="info" className="text-[10px]">Industries</Badge>
+            </div>
+            <div className="space-y-2 pt-1">
+              {breakdown.topIndustries.length === 0 ? (
+                <p className="text-xs text-slate-500 py-3">No sector data available yet.</p>
+              ) : (
+                breakdown.topIndustries.slice(0, 5).map((item, idx) => {
+                  const maxCount = Math.max(...breakdown.topIndustries.map((i) => i.count), 1);
+                  const pct = Math.round((item.count / maxCount) * 100);
+                  return (
+                    <div key={idx} className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-300 truncate max-w-[200px]">{item.industry}</span>
+                        <span className="font-mono text-slate-400 text-[11px]">{item.count} accounts</span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-sky-500 to-indigo-500"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </Card>
+
+          {/* In-Demand Skills */}
+          <Card material="frosted" className="border-white/[0.08] p-5 space-y-3">
+            <div className="flex items-center justify-between border-b border-white/[0.06] pb-2.5">
+              <h3 className="text-xs font-bold tracking-tight text-white uppercase">In-Demand Skills</h3>
+              <Badge variant="purple" className="text-[10px]">Requisitions</Badge>
+            </div>
+            <div className="flex flex-wrap gap-2 pt-2">
+              {breakdown.topSkills.length === 0 ? (
+                <p className="text-xs text-slate-500 py-3">No required skills parsed yet.</p>
+              ) : (
+                breakdown.topSkills.map((s, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono bg-white/[0.04] border border-white/[0.08] text-slate-300 hover:border-sky-500/40 transition-colors"
+                  >
+                    <span>{s.skill}</span>
+                    <span className="text-[10px] text-sky-400 font-bold bg-sky-500/10 px-1 rounded">
+                      {s.count}
+                    </span>
+                  </span>
+                ))
+              )}
+            </div>
+          </Card>
+
+          {/* Deliverability & Work Mode Split */}
+          <Card material="frosted" className="border-white/[0.08] p-5 space-y-3">
+            <div className="flex items-center justify-between border-b border-white/[0.06] pb-2.5">
+              <h3 className="text-xs font-bold tracking-tight text-white uppercase">Work Mode & Deliverability</h3>
+              <Badge variant="success" className="text-[10px]">Health</Badge>
+            </div>
+            <div className="space-y-3 pt-1">
+              <div>
+                <span className="text-[11px] text-slate-400 font-medium">Work Mode Split:</span>
+                <div className="flex gap-2 mt-1.5">
+                  {breakdown.jobModeDistribution.map((m, idx) => (
+                    <div
+                      key={idx}
+                      className="flex-1 p-2 rounded-lg bg-slate-900/50 border border-white/[0.06] text-center"
+                    >
+                      <div className="text-[10px] text-slate-400 font-mono uppercase">{m.mode}</div>
+                      <div className="text-xs font-bold text-white mt-0.5">{m.count}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="pt-1">
+                <span className="text-[11px] text-slate-400 font-medium">Verified Email Ratio:</span>
+                <div className="mt-1.5 h-2 w-full rounded-full bg-slate-800 overflow-hidden flex">
+                  {breakdown.recruiterVerificationDistribution.map((s, idx) => (
+                    <div
+                      key={idx}
+                      title={`${s.status}: ${s.count} (${s.percentage}%)`}
+                      style={{ width: `${s.percentage}%` }}
+                      className={`h-full ${
+                        s.status === 'VERIFIED'
+                          ? 'bg-emerald-500'
+                          : s.status === 'UNVERIFIED'
+                          ? 'bg-amber-500'
+                          : 'bg-slate-600'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Filter / Filter Bar */}
       <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
@@ -542,6 +661,9 @@ export default function DashboardOverviewPage() {
           </div>
         )}
       </div>
+
+      {/* Natural Language AI Data Chat Drawer */}
+      <DataChatDrawer isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </div>
   );
 }

@@ -42,18 +42,48 @@ export class CompaniesController {
 
   @Get()
   @Permissions(PERMISSIONS.COMPANY_READ)
-  @ApiOperation({ summary: "List workspace companies" })
+  @ApiOperation({ summary: "List workspace companies with filtering" })
   @ApiQuery({ name: "limit", required: false, type: Number })
   @ApiQuery({ name: "cursor", required: false, type: String })
+  @ApiQuery({ name: "search", required: false, type: String })
+  @ApiQuery({ name: "tier", required: false, type: String })
+  @ApiQuery({ name: "verificationStatus", required: false, type: String })
+  @ApiQuery({ name: "hiringActivity", required: false, type: Boolean })
   @ApiResponse({ status: 200, description: "Company list retrieved" })
   async list(
     @CurrentUser() user: any,
     @Query("limit") limit?: string,
     @Query("cursor") cursor?: string,
+    @Query("search") search?: string,
+    @Query("tier") tier?: string,
+    @Query("verificationStatus") verificationStatus?: string,
+    @Query("hiringActivity") hiringActivity?: string,
   ) {
     const workspaceId = user.workspaceIds[0];
     const parsedLimit = limit ? parseInt(limit, 10) : 50;
-    return this.companies.list(workspaceId, { limit: parsedLimit, cursor });
+    const isHiring = hiringActivity !== undefined ? hiringActivity === "true" : undefined;
+    return this.companies.list(
+      workspaceId,
+      { limit: parsedLimit, cursor },
+      { search, tier, verificationStatus, hiringActivity: isHiring }
+    );
+  }
+
+  @Get("export")
+  @Permissions(PERMISSIONS.COMPANY_READ)
+  @ApiOperation({ summary: "Export company intelligence as CSV or JSON" })
+  @ApiQuery({ name: "format", required: false, enum: ["json", "csv"] })
+  @ApiQuery({ name: "search", required: false, type: String })
+  @ApiQuery({ name: "tier", required: false, type: String })
+  @ApiResponse({ status: 200, description: "Exported company records" })
+  async export(
+    @CurrentUser() user: any,
+    @Query("format") format: "json" | "csv" = "json",
+    @Query("search") search?: string,
+    @Query("tier") tier?: string,
+  ) {
+    const workspaceId = user.workspaceIds[0];
+    return this.companies.export(workspaceId, { search, tier }, format);
   }
 
   @Get(":id")

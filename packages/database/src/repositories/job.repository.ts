@@ -9,24 +9,92 @@ import { PaginationInput, PaginatedResult } from "@career-intelligence/shared";
 import { JobPosting, JobPostingDocument } from "../models/job-posting.model";
 import { BaseRepository } from "./base.repository";
 
+export interface JobFilterOptions {
+  search?: string;
+  workMode?: string;
+  type?: string;
+  isActive?: boolean;
+}
+
 @Injectable()
 export class JobRepository extends BaseRepository<JobPostingDocument> {
   constructor(@InjectModel(JobPosting.name) model: Model<JobPostingDocument>) {
     super(model);
   }
 
+  private buildQueryFilter(
+    workspaceId: string | Types.ObjectId,
+    filters?: JobFilterOptions
+  ) {
+    const filter: Record<string, unknown> = {
+      ...this.workspaceFilter(workspaceId),
+    };
+
+    if (filters?.workMode) {
+      filter.workMode = filters.workMode;
+    }
+    if (filters?.type) {
+      filter.type = filters.type;
+    }
+    if (filters?.isActive !== undefined) {
+      filter.isActive = filters.isActive;
+    }
+    if (filters?.search && filters.search.trim()) {
+      const regex = new RegExp(filters.search.trim(), "i");
+      filter.$or = [
+        { title: regex },
+        { location: regex },
+        { requiredSkills: regex },
+      ];
+    }
+
+    return filter;
+  }
+
   async findByWorkspace(
     workspaceId: string | Types.ObjectId,
     pagination: PaginationInput = {},
+    filters?: JobFilterOptions,
     session?: ClientSession
   ): Promise<PaginatedResult<JobPostingDocument>> {
+    const filter = this.buildQueryFilter(workspaceId, filters);
     return this.paginate(
-      this.workspaceFilter(workspaceId),
+      filter as any,
       pagination,
       "_id",
       -1,
       session
     );
+  }
+
+  async exportAll(
+    workspaceId: string | Types.ObjectId,
+    filters?: JobFilterOptions,
+    limit: number = 1000
+  ) {
+    const filter = this.buildQueryFilter(workspaceId, filters);
+    return this.model
+      .find(filter as any)
+      .sort({ _id: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
+  }
+
+  async getSkillBreakdown(workspaceId: string | Types.ObjectId, limit: number = 8) {
+    const wsId =
+      typeof workspaceId === "string" && Types.ObjectId.isValid(workspaceId)
+        ? new Types.ObjectId(workspaceId)
+        : workspaceId;
+
+    return this.model.aggregate([
+      { $match: { workspaceId: wsId, deletedAt: null } },
+      { $unwind: "$requiredSkills" },
+      { $group: { _id: "$requiredSkills", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: limit },
+      { $project: { skill: "$_id", count: 1, _id: 0 } },
+    ]);
   }
 
   async findByApplicationUrl(applicationUrl: string, workspaceId?: string | Types.ObjectId, session?: ClientSession) {
