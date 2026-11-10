@@ -12,4 +12,7 @@ export * from './components/spatial-kpi-card';
 export * from './components/spatial-particle-field';
 export * from './components/spatial-tabs';
 export * from './components/spatial-tooltip';
+export * from './components/spatial-toast';
+export * from './components/spatial-skeleton';
+export * from './components/spatial-command-palette';
 export * from './motion/tokens';

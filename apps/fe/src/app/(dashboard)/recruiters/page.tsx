@@ -14,10 +14,14 @@ import {
   Input,
   SpatialModal,
   SpatialTabs,
+  SpatialSkeletonTable,
+  useToast,
 } from '@career-intelligence/ui';
 import { api, RecruiterItem } from '../../../lib/api';
+import { SpatialEntityInspector } from '../../../components/spatial-entity-inspector';
 
 export default function RecruitersPage() {
+  const toast = useToast();
   const [recruiters, setRecruiters] = useState<RecruiterItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -25,6 +29,7 @@ export default function RecruitersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('ALL');
+  const [selectedRecruiter, setSelectedRecruiter] = useState<RecruiterItem | null>(null);
 
   // Form fields
   const [name, setName] = useState('');
@@ -33,7 +38,6 @@ export default function RecruitersPage() {
   const [department, setDepartment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-
   const [isExporting, setIsExporting] = useState(false);
 
   const loadRecruiters = async (cursor?: string) => {
@@ -67,6 +71,7 @@ export default function RecruitersPage() {
   const handleExport = async () => {
     try {
       setIsExporting(true);
+      toast.info('Exporting CSV', 'Compiling verified recruiter contacts...');
       const csvData = await api.recruiters.export('csv', {
         verificationStatus: selectedFilter !== 'ALL' ? selectedFilter : undefined,
         search: searchQuery.trim() || undefined,
@@ -81,15 +86,14 @@ export default function RecruitersPage() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        toast.success('Download Complete', 'Recruiter directory CSV exported.');
       }
+    } catch {
+      toast.error('Export Failed', 'Unable to generate recruiter CSV.');
     } finally {
       setIsExporting(false);
     }
   };
-
-  useEffect(() => {
-    loadRecruiters();
-  }, []);
 
   const handleCreateRecruiter = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,6 +111,7 @@ export default function RecruitersPage() {
         designation: designation.trim() || undefined,
         department: department.trim() || undefined,
       });
+      toast.success('Recruiter Added', `${name} queued for verification.`);
       setShowCreateModal(false);
       setName('');
       setEmail('');
@@ -116,6 +121,7 @@ export default function RecruitersPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to add recruiter';
       setCreateError(msg);
+      toast.error('Failed to Add', msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -141,12 +147,10 @@ export default function RecruitersPage() {
   };
 
   const filteredRecruiters = recruiters.filter((r) => {
-    // Filter by tab
     if (selectedFilter === 'VERIFIED' && r.verificationStatus !== 'VERIFIED') return false;
     if (selectedFilter === 'RISKY' && r.verificationStatus !== 'RISKY') return false;
     if (selectedFilter === 'UNVERIFIED' && r.verificationStatus !== 'UNVERIFIED' && r.verificationStatus) return false;
 
-    // Filter by query
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -273,73 +277,70 @@ export default function RecruitersPage() {
 
       {/* Table Container Card */}
       <Card material="frosted" className="border-white/[0.08]">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Contact Name</TableHead>
-              <TableHead>Verified Email</TableHead>
-              <TableHead>Designation & Team</TableHead>
-              <TableHead>Verification Status</TableHead>
-              <TableHead>Indexed On</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
+        {isLoading ? (
+          <SpatialSkeletonTable rows={6} cols={5} />
+        ) : (
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-12 text-slate-400">
-                  <div className="flex flex-col items-center justify-center space-y-2">
-                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
-                    <span className="text-xs">Querying recruiter index...</span>
-                  </div>
-                </TableCell>
+                <TableHead>Contact Name</TableHead>
+                <TableHead>Verified Email</TableHead>
+                <TableHead>Designation & Team</TableHead>
+                <TableHead>Verification Status</TableHead>
+                <TableHead>Indexed On</TableHead>
               </TableRow>
-            ) : filteredRecruiters.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-12 text-slate-400">
-                  No recruiter contacts found matching the active filter.
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredRecruiters.map((r) => (
-                <TableRow key={r._id} className="hover:bg-white/[0.04]">
-                  <TableCell>
-                    <div className="flex items-center space-x-3">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 border border-white/10 text-xs font-semibold text-slate-200 uppercase">
-                        {r.name.slice(0, 2)}
-                      </div>
-                      <span className="font-medium text-white">{r.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-sky-400">
-                    {r.email ? (
-                      <a href={`mailto:${r.email}`} className="hover:underline">
-                        {r.email}
-                      </a>
-                    ) : (
-                      <span className="text-slate-500">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-300">
-                    {r.designation ? (
-                      <span>
-                        {r.designation}
-                        {r.department && (
-                          <span className="text-slate-500 font-mono"> · {r.department}</span>
-                        )}
-                      </span>
-                    ) : (
-                      <span className="text-slate-500 font-mono">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>{getStatusBadge(r.verificationStatus)}</TableCell>
-                  <TableCell className="text-xs text-slate-400 font-mono">
-                    {new Date(r.createdAt).toLocaleDateString()}
+            </TableHeader>
+            <TableBody>
+              {filteredRecruiters.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-12 text-slate-400">
+                    No recruiter contacts found matching the active filter.
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                filteredRecruiters.map((r) => (
+                  <TableRow
+                    key={r._id}
+                    onClick={() => setSelectedRecruiter(r)}
+                    className="hover:bg-white/[0.05] cursor-pointer transition-colors"
+                  >
+                    <TableCell>
+                      <div className="flex items-center space-x-3">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500/10 border border-indigo-400/20 text-xs font-semibold text-indigo-300 uppercase">
+                          {r.name.slice(0, 2)}
+                        </div>
+                        <span className="font-medium text-white">{r.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-sky-400">
+                      {r.email ? (
+                        <span>{r.email}</span>
+                      ) : (
+                        <span className="text-slate-500">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs text-slate-300">
+                      {r.designation ? (
+                        <span>
+                          {r.designation}
+                          {r.department && (
+                            <span className="text-slate-500 font-mono"> · {r.department}</span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-slate-500 font-mono">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(r.verificationStatus)}</TableCell>
+                    <TableCell className="text-xs text-slate-400 font-mono">
+                      {new Date(r.createdAt).toLocaleDateString()}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
 
         {/* Pagination controls */}
         <div className="flex items-center justify-between p-4 border-t border-white/[0.06] bg-slate-950/40">
@@ -364,6 +365,12 @@ export default function RecruitersPage() {
           </Button>
         </div>
       </Card>
+
+      {/* Spatial Entity Inspector Drawer */}
+      <SpatialEntityInspector
+        entity={selectedRecruiter ? { type: 'recruiter', data: selectedRecruiter } : null}
+        onClose={() => setSelectedRecruiter(null)}
+      />
     </div>
   );
 }

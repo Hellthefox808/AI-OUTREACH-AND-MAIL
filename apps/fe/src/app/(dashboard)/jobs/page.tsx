@@ -14,10 +14,14 @@ import {
   Input,
   SpatialModal,
   SpatialTabs,
+  SpatialSkeletonTable,
+  useToast,
 } from '@career-intelligence/ui';
 import { api, JobItem } from '../../../lib/api';
+import { SpatialEntityInspector } from '../../../components/spatial-entity-inspector';
 
 export default function JobsPage() {
+  const toast = useToast();
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -26,6 +30,7 @@ export default function JobsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [workModeFilter, setWorkModeFilter] = useState('ALL');
   const [isExporting, setIsExporting] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<JobItem | null>(null);
 
   // Form fields
   const [title, setTitle] = useState('');
@@ -67,6 +72,7 @@ export default function JobsPage() {
   const handleExport = async () => {
     try {
       setIsExporting(true);
+      toast.info('Exporting CSV', 'Compiling career opportunities...');
       const csvData = await api.jobs.export('csv', {
         workMode: workModeFilter !== 'ALL' ? workModeFilter : undefined,
         search: searchQuery.trim() || undefined,
@@ -81,15 +87,14 @@ export default function JobsPage() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        toast.success('Download Complete', 'Job requisitions CSV exported.');
       }
+    } catch {
+      toast.error('Export Failed', 'Unable to export job requisitions.');
     } finally {
       setIsExporting(false);
     }
   };
-
-  useEffect(() => {
-    loadJobs();
-  }, []);
 
   const handleCreateJob = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,36 +112,37 @@ export default function JobsPage() {
         applicationUrl: applicationUrl.trim() || undefined,
         workMode,
         jobType,
-        status: 'ACTIVE',
       });
+      toast.success('Requisition Active', `${title} indexed into workspace.`);
       setShowCreateModal(false);
       setTitle('');
       setLocation('');
       setApplicationUrl('');
       await loadJobs();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to add job opening';
+      const msg = err instanceof Error ? err.message : 'Failed to create job';
       setCreateError(msg);
+      toast.error('Creation Failed', msg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const filteredJobs = jobs.filter((j) => {
-    if (workModeFilter !== 'ALL' && j.workMode !== workModeFilter) return false;
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
       j.title.toLowerCase().includes(q) ||
-      (j.location || '').toLowerCase().includes(q)
+      (j.location || '').toLowerCase().includes(q) ||
+      (j.workMode || '').toLowerCase().includes(q)
     );
   });
 
-  const modeTabs = [
+  const filterTabs = [
     { id: 'ALL', label: 'All Openings', count: jobs.length },
     { id: 'REMOTE', label: 'Remote', count: jobs.filter((j) => j.workMode === 'REMOTE').length },
-    { id: 'HYBRID', label: 'Hybrid', count: jobs.filter((j) => j.workMode === 'HYBRID').length },
-    { id: 'ONSITE', label: 'Onsite', count: jobs.filter((j) => j.workMode === 'ONSITE').length },
+    { id: 'HYBRID', label: 'Hybrid' },
+    { id: 'ONSITE', label: 'Onsite' },
   ];
 
   return (
@@ -144,15 +150,15 @@ export default function JobsPage() {
       {/* Top Action Bar */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-white">Tracked Opportunities</h2>
+          <h2 className="text-xl font-bold tracking-tight text-white">Active Career Requisitions</h2>
           <p className="text-xs text-slate-400">
-            Open job requisitions mapped to company graphs and outbound recruitment channels
+            Discovered employment opportunities mapped to applicant qualification profiles
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
             <Input
-              placeholder="Search roles..."
+              placeholder="Filter requisitions..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-44 sm:w-60 h-9 text-xs"
@@ -174,7 +180,7 @@ export default function JobsPage() {
             ↓ Export CSV
           </Button>
           <Button variant="crystal" size="sm" onClick={() => setShowCreateModal(true)}>
-            + Add Job Opening
+            + Add Requisition
           </Button>
         </div>
       </div>
@@ -182,7 +188,7 @@ export default function JobsPage() {
       {/* Filter Tabs */}
       <div className="flex items-center overflow-x-auto pb-1">
         <SpatialTabs
-          tabs={modeTabs}
+          tabs={filterTabs}
           activeTab={workModeFilter}
           onChange={setWorkModeFilter}
         />
@@ -192,8 +198,8 @@ export default function JobsPage() {
       <SpatialModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        title="Post New Opportunity"
-        description="Record an active requisition for candidate matching and automated outreach."
+        title="Add Career Opportunity"
+        description="Index an active job requisition into the workspace candidate matching engine."
         footer={
           <>
             <Button variant="outline" size="sm" onClick={() => setShowCreateModal(false)}>
@@ -272,86 +278,83 @@ export default function JobsPage() {
 
       {/* Table Container Card */}
       <Card material="frosted" className="border-white/[0.08]">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Role Title</TableHead>
-              <TableHead>Location</TableHead>
-              <TableHead>Work Mode</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Requisition Link</TableHead>
-              <TableHead>Date Added</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
+        {isLoading ? (
+          <SpatialSkeletonTable rows={6} cols={6} />
+        ) : (
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-slate-400">
-                  <div className="flex flex-col items-center justify-center space-y-2">
-                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
-                    <span className="text-xs">Fetching job requisitions...</span>
-                  </div>
-                </TableCell>
+                <TableHead>Role Title</TableHead>
+                <TableHead>Location</TableHead>
+                <TableHead>Work Mode</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Requisition Link</TableHead>
+                <TableHead>Date Added</TableHead>
               </TableRow>
-            ) : filteredJobs.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-slate-400">
-                  No job postings found matching your active filter.
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredJobs.map((j) => (
-                <TableRow key={j._id} className="hover:bg-white/[0.04]">
-                  <TableCell className="font-medium text-white">
-                    {j.title}
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-300">
-                    {j.location || 'Global / Flexible'}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        j.workMode === 'REMOTE'
-                          ? 'success'
-                          : j.workMode === 'HYBRID'
-                          ? 'info'
-                          : 'default'
-                      }
-                      className="text-[10px]"
-                    >
-                      {j.workMode || 'REMOTE'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={j.status === 'ACTIVE' ? 'glass' : 'outline'} pulse={j.status === 'ACTIVE'} className="text-[10px]">
-                      {j.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {j.applicationUrl ? (
-                      <a
-                        href={j.applicationUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-mono text-xs text-sky-400 hover:text-sky-300 hover:underline inline-flex items-center gap-1"
-                      >
-                        <span>Apply</span>
-                        <svg className="h-3 w-3 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
-                        </svg>
-                      </a>
-                    ) : (
-                      <span className="text-slate-500 font-mono text-xs">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-400 font-mono">
-                    {new Date(j.createdAt).toLocaleDateString()}
+            </TableHeader>
+            <TableBody>
+              {filteredJobs.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-12 text-slate-400">
+                    No job postings found matching your active filter.
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                filteredJobs.map((j) => (
+                  <TableRow
+                    key={j._id}
+                    onClick={() => setSelectedJob(j)}
+                    className="hover:bg-white/[0.05] cursor-pointer transition-colors"
+                  >
+                    <TableCell className="font-medium text-white">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">💼</span>
+                        <span>{j.title}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs text-slate-300">
+                      {j.location || 'Global / Flexible'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          j.workMode === 'REMOTE'
+                            ? 'success'
+                            : j.workMode === 'HYBRID'
+                            ? 'info'
+                            : 'default'
+                        }
+                        className="text-[10px]"
+                      >
+                        {j.workMode || 'REMOTE'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={j.status === 'ACTIVE' ? 'glass' : 'outline'} pulse={j.status === 'ACTIVE'} className="text-[10px]">
+                        {j.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {j.applicationUrl ? (
+                        <span className="font-mono text-xs text-sky-400 hover:text-sky-300 inline-flex items-center gap-1">
+                          <span>Apply</span>
+                          <svg className="h-3 w-3 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
+                          </svg>
+                        </span>
+                      ) : (
+                        <span className="text-slate-500 font-mono text-xs">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs text-slate-400 font-mono">
+                      {new Date(j.createdAt).toLocaleDateString()}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
 
         {/* Pagination controls */}
         <div className="flex items-center justify-between p-4 border-t border-white/[0.06] bg-slate-950/40">
@@ -376,6 +379,12 @@ export default function JobsPage() {
           </Button>
         </div>
       </Card>
+
+      {/* Spatial Entity Inspector Drawer */}
+      <SpatialEntityInspector
+        entity={selectedJob ? { type: 'job', data: selectedJob } : null}
+        onClose={() => setSelectedJob(null)}
+      />
     </div>
   );
 }

@@ -13,10 +13,14 @@ import {
   TableCell,
   Input,
   SpatialModal,
+  SpatialSkeletonTable,
+  useToast,
 } from '@career-intelligence/ui';
 import { api, CompanyItem } from '../../../lib/api';
+import { SpatialEntityInspector } from '../../../components/spatial-entity-inspector';
 
 export default function CompaniesPage() {
+  const toast = useToast();
   const [companies, setCompanies] = useState<CompanyItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -25,6 +29,7 @@ export default function CompaniesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTier, setSelectedTier] = useState<'ALL' | 'TIER_1' | 'TIER_2' | 'TIER_3'>('ALL');
   const [isExporting, setIsExporting] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState<CompanyItem | null>(null);
 
   // Form fields
   const [displayName, setDisplayName] = useState('');
@@ -63,6 +68,7 @@ export default function CompaniesPage() {
   const handleExport = async () => {
     try {
       setIsExporting(true);
+      toast.info('Exporting CSV', 'Compiling company records for download...');
       const csvData = await api.companies.export('csv', {
         tier: selectedTier !== 'ALL' ? selectedTier : undefined,
         search: searchQuery.trim() || undefined,
@@ -77,7 +83,10 @@ export default function CompaniesPage() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        toast.success('Download Complete', 'Companies CSV successfully exported.');
       }
+    } catch {
+      toast.error('Export Failed', 'Unable to generate CSV at this time.');
     } finally {
       setIsExporting(false);
     }
@@ -98,6 +107,7 @@ export default function CompaniesPage() {
         displayName,
         domain: domain.toLowerCase().trim(),
       });
+      toast.success('Company Tracked', `${displayName} added to workspace.`);
       setShowCreateModal(false);
       setDisplayName('');
       setDomain('');
@@ -105,6 +115,7 @@ export default function CompaniesPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create company';
       setCreateError(msg);
+      toast.error('Creation Failed', msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -225,80 +236,76 @@ export default function CompaniesPage() {
 
       {/* Table Container Card */}
       <Card material="frosted" className="border-white/[0.08]">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Company</TableHead>
-              <TableHead>Domain</TableHead>
-              <TableHead>Tier</TableHead>
-              <TableHead>Industries</TableHead>
-              <TableHead>Added Date</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
+        {isLoading ? (
+          <SpatialSkeletonTable rows={6} cols={5} />
+        ) : (
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-12 text-slate-400">
-                  <div className="flex flex-col items-center justify-center space-y-2">
-                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
-                    <span className="text-xs">Loading companies from database...</span>
-                  </div>
-                </TableCell>
+                <TableHead>Company</TableHead>
+                <TableHead>Domain</TableHead>
+                <TableHead>Tier</TableHead>
+                <TableHead>Industries</TableHead>
+                <TableHead>Added Date</TableHead>
               </TableRow>
-            ) : filteredCompanies.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-12 text-slate-400">
-                  No company records match your criteria.
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredCompanies.map((c) => (
-                <TableRow key={c._id} className="hover:bg-white/[0.04]">
-                  <TableCell className="font-medium text-white">
-                    {c.displayName || c.legalName}
-                  </TableCell>
-                  <TableCell>
-                    <a
-                      href={`https://${c.domain}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono text-xs text-sky-400 hover:text-sky-300 hover:underline flex items-center gap-1"
-                    >
-                      <span>{c.domain}</span>
-                      <svg className="h-3 w-3 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
-                      </svg>
-                    </a>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={c.tier === 'TIER_1' ? 'purple' : 'default'}
-                      className="text-[10px]"
-                    >
-                      {c.tier || 'TIER_3'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {c.industries && c.industries.length > 0 ? (
-                        c.industries.map((ind) => (
-                          <Badge key={ind} variant="info" className="text-[10px]">
-                            {ind}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-xs text-slate-500 font-mono">—</span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-400 font-mono">
-                    {new Date(c.createdAt).toLocaleDateString()}
+            </TableHeader>
+            <TableBody>
+              {filteredCompanies.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-12 text-slate-400">
+                    No company records match your criteria.
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                filteredCompanies.map((c) => (
+                  <TableRow
+                    key={c._id}
+                    onClick={() => setSelectedCompany(c)}
+                    className="hover:bg-white/[0.05] cursor-pointer transition-colors"
+                  >
+                    <TableCell className="font-medium text-white">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-500/10 border border-sky-400/20 text-sky-300 font-bold text-xs">
+                          {(c.displayName || c.legalName || 'C').charAt(0)}
+                        </div>
+                        <span>{c.displayName || c.legalName}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-mono text-xs text-sky-400 hover:text-sky-300">
+                        {c.domain}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={c.tier === 'TIER_1' ? 'purple' : 'default'}
+                        className="text-[10px]"
+                      >
+                        {c.tier || 'TIER_3'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {c.industries && c.industries.length > 0 ? (
+                          c.industries.map((ind) => (
+                            <Badge key={ind} variant="info" className="text-[10px]">
+                              {ind}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-xs text-slate-500 font-mono">—</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs text-slate-400 font-mono">
+                      {new Date(c.createdAt).toLocaleDateString()}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
 
         {/* Pagination controls */}
         <div className="flex items-center justify-between p-4 border-t border-white/[0.06] bg-slate-950/40">
@@ -323,6 +330,12 @@ export default function CompaniesPage() {
           </Button>
         </div>
       </Card>
+
+      {/* Spatial Entity Inspector Drawer */}
+      <SpatialEntityInspector
+        entity={selectedCompany ? { type: 'company', data: selectedCompany } : null}
+        onClose={() => setSelectedCompany(null)}
+      />
     </div>
   );
 }

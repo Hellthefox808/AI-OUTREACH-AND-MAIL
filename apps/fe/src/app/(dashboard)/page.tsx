@@ -11,6 +11,9 @@ import {
   Button,
   Badge,
   SpatialKpiCard,
+  SpatialSkeleton,
+  SpatialTooltip,
+  useToast,
 } from '@career-intelligence/ui';
 import {
   api,
@@ -40,6 +43,7 @@ type SelectedEntity =
   | null;
 
 export default function DashboardOverviewPage() {
+  const toast = useToast();
   const [overview, setOverview] = useState<WorkspaceAnalyticsOverview | null>(null);
   const [breakdown, setBreakdown] = useState<WorkspaceAnalyticsBreakdown | null>(null);
   const [companies, setCompanies] = useState<CompanyItem[]>([]);
@@ -49,6 +53,12 @@ export default function DashboardOverviewPage() {
   const [selectedEntity, setSelectedEntity] = useState<SelectedEntity>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'companies' | 'recruiters' | 'jobs'>('all');
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatPrompt, setChatPrompt] = useState<string | undefined>(undefined);
+
+  const openChatWithPrompt = (prompt: string) => {
+    setChatPrompt(prompt);
+    setIsChatOpen(true);
+  };
 
   useEffect(() => {
     async function loadData() {
@@ -98,14 +108,16 @@ export default function DashboardOverviewPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <Button
-            variant="crystal"
-            size="sm"
-            onClick={() => setIsChatOpen(true)}
-            className="border-sky-400/40 bg-sky-500/20 text-sky-300 shadow-[0_0_12px_rgba(56,189,248,0.25)] hover:bg-sky-500/30"
-          >
-            ✦ AI Data Chat
-          </Button>
+          <SpatialTooltip content="Explore workspace metrics & records using natural language AI">
+            <Button
+              variant="crystal"
+              size="sm"
+              onClick={() => setIsChatOpen(true)}
+              className="border-sky-400/40 bg-sky-500/20 text-sky-300 shadow-[0_0_12px_rgba(56,189,248,0.25)] hover:bg-sky-500/30"
+            >
+              ✦ AI Data Chat
+            </Button>
+          </SpatialTooltip>
           <Link href="/companies">
             <Button variant="crystal" size="sm">
               + New Company
@@ -324,9 +336,9 @@ export default function DashboardOverviewPage() {
               </CardHeader>
               <CardContent className="pt-4 space-y-2.5">
                 {isLoading ? (
-                  <div className="space-y-2 py-4">
+                  <div className="space-y-2 py-2">
                     {[1, 2, 3].map((n) => (
-                      <div key={n} className="h-14 rounded-xl bg-white/[0.03] animate-pulse" />
+                      <SpatialSkeleton key={n} className="h-14 w-full" />
                     ))}
                   </div>
                 ) : companies.length === 0 ? (
@@ -392,9 +404,9 @@ export default function DashboardOverviewPage() {
               </CardHeader>
               <CardContent className="pt-4 space-y-2.5">
                 {isLoading ? (
-                  <div className="space-y-2 py-4">
+                  <div className="space-y-2 py-2">
                     {[1, 2, 3].map((n) => (
-                      <div key={n} className="h-14 rounded-xl bg-white/[0.03] animate-pulse" />
+                      <SpatialSkeleton key={n} className="h-14 w-full" />
                     ))}
                   </div>
                 ) : recruiters.length === 0 ? (
@@ -459,9 +471,9 @@ export default function DashboardOverviewPage() {
               </CardHeader>
               <CardContent className="pt-4 space-y-2.5">
                 {isLoading ? (
-                  <div className="space-y-2 py-4">
+                  <div className="space-y-2 py-2">
                     {[1, 2, 3].map((n) => (
-                      <div key={n} className="h-14 rounded-xl bg-white/[0.03] animate-pulse" />
+                      <SpatialSkeleton key={n} className="h-14 w-full" />
                     ))}
                   </div>
                 ) : jobs.length === 0 ? (
@@ -550,8 +562,31 @@ export default function DashboardOverviewPage() {
                     </div>
 
                     <div className="space-y-2 pt-2">
+                      <Button
+                        variant="crystal"
+                        size="sm"
+                        className="w-full justify-start gap-2"
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedEntity.data.domain);
+                          toast.success('Domain Copied', selectedEntity.data.domain);
+                        }}
+                      >
+                        <span>📋 Copy Domain Link</span>
+                      </Button>
+                      <Button
+                        variant="glass"
+                        size="sm"
+                        className="w-full justify-start gap-2 text-sky-300 border-sky-400/30"
+                        onClick={() =>
+                          openChatWithPrompt(
+                            `Provide deep research, hiring signals, and talent sourcing strategy for ${selectedEntity.data.displayName || selectedEntity.data.legalName} (${selectedEntity.data.domain})`
+                          )
+                        }
+                      >
+                        <span>✦ Query AI Sourcing Intelligence</span>
+                      </Button>
                       <Link href={`/companies`} className="block w-full">
-                        <Button variant="crystal" size="sm" className="w-full">
+                        <Button variant="outline" size="sm" className="w-full">
                           Deep Research Profile &rarr;
                         </Button>
                       </Link>
@@ -605,8 +640,33 @@ export default function DashboardOverviewPage() {
                     </div>
 
                     <div className="space-y-2 pt-2">
+                      {selectedEntity.data.email && (
+                        <Button
+                          variant="crystal"
+                          size="sm"
+                          className="w-full justify-start gap-2"
+                          onClick={() => {
+                            navigator.clipboard.writeText(selectedEntity.data.email!);
+                            toast.success('Email Copied', selectedEntity.data.email!);
+                          }}
+                        >
+                          <span>✉ Copy Verified Email</span>
+                        </Button>
+                      )}
+                      <Button
+                        variant="glass"
+                        size="sm"
+                        className="w-full justify-start gap-2 text-sky-300 border-sky-400/30"
+                        onClick={() =>
+                          openChatWithPrompt(
+                            `Draft a high-deliverability recruiter outreach note to ${selectedEntity.data.name} (${selectedEntity.data.designation || 'Recruiter'})`
+                          )
+                        }
+                      >
+                        <span>✦ Draft Outreach with AI</span>
+                      </Button>
                       <Link href={`/recruiters`} className="block w-full">
-                        <Button variant="crystal" size="sm" className="w-full">
+                        <Button variant="outline" size="sm" className="w-full">
                           Trigger Verification Pipeline &rarr;
                         </Button>
                       </Link>
@@ -636,6 +696,18 @@ export default function DashboardOverviewPage() {
                     </div>
 
                     <div className="space-y-2 pt-2">
+                      <Button
+                        variant="glass"
+                        size="sm"
+                        className="w-full justify-start gap-2 text-sky-300 border-sky-400/30"
+                        onClick={() =>
+                          openChatWithPrompt(
+                            `Analyze requisition "${selectedEntity.data.title}" and identify key qualification criteria and applicant pitch.`
+                          )
+                        }
+                      >
+                        <span>✦ Analyze Requisition Signals</span>
+                      </Button>
                       {selectedEntity.data.applicationUrl && (
                         <a
                           href={selectedEntity.data.applicationUrl}
@@ -663,7 +735,11 @@ export default function DashboardOverviewPage() {
       </div>
 
       {/* Natural Language AI Data Chat Drawer */}
-      <DataChatDrawer isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <DataChatDrawer
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        initialPrompt={chatPrompt}
+      />
     </div>
   );
 }

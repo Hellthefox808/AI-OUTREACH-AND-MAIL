@@ -97,6 +97,8 @@ export interface RecruiterItem {
   designation?: string;
   department?: string;
   verificationStatus: string;
+  deliverabilityScore?: number;
+  linkedinUrl?: string;
   createdAt: string;
 }
 

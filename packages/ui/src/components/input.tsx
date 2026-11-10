@@ -6,10 +6,11 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   error?: string;
   helperText?: string;
   leftIcon?: React.ReactNode;
+  rightElement?: React.ReactNode;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, label, error, helperText, leftIcon, id, ...props }, ref) => {
+  ({ className, label, error, helperText, leftIcon, rightElement, id, ...props }, ref) => {
     const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
 
     return (
@@ -34,11 +35,17 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             className={cn(
               'flex h-10 w-full rounded-xl border border-white/10 bg-slate-900/60 px-3.5 py-2 text-sm text-white placeholder:text-slate-500 backdrop-blur-md transition-all duration-160 ease-standard focus:outline-none focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20 focus:bg-slate-900/85 disabled:cursor-not-allowed disabled:opacity-40',
               Boolean(leftIcon) && 'pl-10',
+              Boolean(rightElement) && 'pr-10',
               error && 'border-rose-500/80 focus:border-rose-500 focus:ring-rose-500/20',
               className
             )}
             {...props}
           />
+          {rightElement && (
+            <div className="absolute right-3 flex items-center text-slate-400">
+              {rightElement}
+            </div>
+          )}
         </div>
         {error && <p className="text-xs text-rose-400 font-medium">{error}</p>}
         {!error && helperText && <p className="text-xs text-slate-400">{helperText}</p>}

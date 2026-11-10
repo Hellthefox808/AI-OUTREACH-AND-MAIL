@@ -13,15 +13,18 @@ import {
   CardContent,
   CardFooter,
   SpatialParticleField,
+  useToast,
 } from '@career-intelligence/ui';
 import { useAuth } from '../../../lib/auth-context';
 
 export default function RegisterPage() {
   const router = useRouter();
+  const toast = useToast();
   const { register, user } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [workspaceName, setWorkspaceName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -36,11 +39,13 @@ export default function RegisterPage() {
     e.preventDefault();
     if (!name || !email || !password) {
       setErrorMessage('Please fill in all required fields.');
+      toast.error('Validation Error', 'All required fields must be completed.');
       return;
     }
 
     if (password.length < 8) {
       setErrorMessage('Password must be at least 8 characters long.');
+      toast.warning('Password Weak', 'Password must be 8 or more characters.');
       return;
     }
 
@@ -53,10 +58,12 @@ export default function RegisterPage() {
         password,
         workspaceName: workspaceName.trim() || undefined,
       });
+      toast.success('Workspace Created', 'Welcome to Career Intelligence OS!');
       router.push('/');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Registration failed. Please verify input parameters.';
       setErrorMessage(msg);
+      toast.error('Registration Failed', msg);
     } finally {
       setIsLoading(false);
     }
@@ -114,12 +121,32 @@ export default function RegisterPage() {
 
               <Input
                 label="Master Password (min. 8 characters)"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="new-password"
                 placeholder="••••••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                rightElement={
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="p-1 text-slate-400 hover:text-white transition-colors"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? (
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                      </svg>
+                    ) : (
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    )}
+                  </button>
+                }
               />
 
               <Input
