@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint \"src/**/*.{ts,tsx}\" --fix",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
     "test:unit": "vitest run"
   },
   "dependencies": {
