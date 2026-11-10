@@ -1,0 +1,99 @@
+# ==============================================================================
+# Career Intelligence OS — Kong Declarative Configuration (DB-less mode)
+# Format Version: 3.0
+# ==============================================================================
+
+_format_version: "3.0"
+
+services:
+  - name: career-intelligence-api
+    url: http://backend-upstream:4000/v1
+    connect_timeout: 3000
+    write_timeout: 15000
+    read_timeout: 15000
+    retries: 3
+    routes:
+      - name: public-api-route
+        paths:
+          - /v1
+        strip_path: false
+        protocols:
+          - https
+          - http
+        plugins:
+          # Distributed Rate Limiting via Redis Cluster
+          - name: rate-limiting
+            config:
+              minute: 120
+              hour: 5000
+              policy: redis
+              redis_host: "career-intelligence-redis"
+              redis_port: 6379
+              redis_timeout: 2000
+              fault_tolerant: true
+              hide_client_headers: false
+              limit_by: consumer
+              header_name: X-Workspace-Id
+
+          # Correlation & Distributed Tracing Request ID
+          - name: correlation-id
+            config:
+              header_name: X-Request-Id
+              generator: uuid#counter
+              echo_downstream: true
+
+          # Security Headers Enforcer
+          - name: response-transformer
+            config:
+              add:
+                headers:
+                  - "Strict-Transport-Security: max-age=63072000; includeSubDomains; preload"
+                  - "X-Content-Type-Options: nosniff"
+                  - "X-Frame-Options: DENY"
+                  - "Referrer-Policy: strict-origin-when-cross-origin"
+              remove:
+                headers:
+                  - "X-Powered-By"
+                  - "Server"
+
+          # CORS Policy for Web Application and Chrome Extension
+          - name: cors
+            config:
+              origins:
+                - "https://app.careerintelligence.com"
+                - "chrome-extension://.*"
+              methods:
+                - GET
+                - POST
+                - PUT
+                - PATCH
+                - DELETE
+                - OPTIONS
+              headers:
+                - Accept
+                - Accept-Version
+                - Content-Length
+                - Content-Type
+                - Authorization
+                - Idempotency-Key
+                - X-Idempotency-Key
+                - X-Workspace-Id
+                - X-Request-Id
+              exposed_headers:
+                - Idempotent-Replayed
+                - X-Cache-Lookup
+                - X-Request-Id
+                - RateLimit-Limit
+                - RateLimit-Remaining
+                - RateLimit-Reset
+              credentials: true
+              max_age: 86400
+
+plugins:
+  # Global Prometheus Metrics for SRE RED Method Monitoring
+  - name: prometheus
+    config:
+      per_consumer: true
+      status_code_metrics: true
+      latency_metrics: true
+      bandwidth_metrics: true

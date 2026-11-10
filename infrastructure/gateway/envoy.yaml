@@ -1,0 +1,202 @@
+# ==============================================================================
+# Career Intelligence OS — Enterprise Ingress API Gateway Configuration (Envoy 1.28+)
+#
+# Topology:
+#   Internet -> Cloudflare (Anycast / DDoS) -> Envoy Ingress (mTLS / Rate Limit / Routing)
+#            -> NestJS Backend API (Port 4000) / Worker RPC (Port 50051)
+# ==============================================================================
+
+static_resources:
+  listeners:
+    # --------------------------------------------------------------------------
+    # Listener 1: HTTP Plaintext Redirect (Port 80 -> Port 443 HTTPS)
+    # --------------------------------------------------------------------------
+    - name: ingress_http_redirect
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 80
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                route_config:
+                  name: redirect_route
+                  virtual_hosts:
+                    - name: backend_redirect
+                      domains: ["*"]
+                      routes:
+                        - match:
+                            prefix: "/"
+                          redirect:
+                            https_redirect: true
+                            response_code: MOVED_PERMANENTLY
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+    # --------------------------------------------------------------------------
+    # Listener 2: Production HTTPS Ingress (Port 443 with TLS 1.3 & mTLS)
+    # --------------------------------------------------------------------------
+    - name: ingress_https
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 443
+      filter_chains:
+        - transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+              common_tls_context:
+                tls_params:
+                  tls_minimum_protocol_version: TLSv1_3
+                  cipher_suites:
+                    - "ECDHE-ECDSA-AES256-GCM-SHA384"
+                    - "ECDHE-RSA-AES256-GCM-SHA384"
+                    - "ECDHE-ECDSA-CHACHA20-POLY1305"
+                tls_certificates:
+                  - certificate_chain:
+                      filename: "/etc/ssl/certs/api-careerintelligence.crt"
+                    private_key:
+                      filename: "/etc/ssl/private/api-careerintelligence.key"
+                validation_context:
+                  trusted_ca:
+                    filename: "/etc/ssl/certs/cloudflare-origin-ca.pem"
+          filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_https
+                use_remote_address: true
+                xff_num_trusted_hops: 1
+                normalize_path: true
+                merge_slashes: true
+
+                # Request tracing correlation via W3C TraceContext & Request ID
+                request_id_extension:
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.request_id.uuid.v3.UuidRequestIdConfig
+                    pack_trace_reason: true
+
+                common_http_protocol_options:
+                  idle_timeout: 60s
+                  headers_with_underscores_action: REJECT_REQUEST
+
+                http2_protocol_options:
+                  max_concurrent_streams: 1024
+                  initial_stream_window_size: 65536
+                  initial_connection_window_size: 1048576
+
+                # Security headers injected on all egress API responses
+                response_headers_to_add:
+                  - header:
+                      key: "strict-transport-security"
+                      value: "max-age=63072000; includeSubDomains; preload"
+                    append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                  - header:
+                      key: "x-content-type-options"
+                      value: "nosniff"
+                    append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                  - header:
+                      key: "x-frame-options"
+                      value: "DENY"
+                    append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                  - header:
+                      key: "referrer-policy"
+                      value: "strict-origin-when-cross-origin"
+                    append_action: OVERWRITE_IF_EXISTS_OR_ADD
+
+                response_headers_to_remove:
+                  - "x-powered-by"
+                  - "server"
+
+                # Route configuration
+                route_config:
+                  name: local_api_routes
+                  virtual_hosts:
+                    - name: api_service
+                      domains: ["api.careerintelligence.com", "localhost"]
+                      cors:
+                        allow_origin_string_match:
+                          - exact: "https://app.careerintelligence.com"
+                          - safe_regex:
+                              google_re2: {}
+                              regex: "chrome-extension://[a-p]{32}"
+                        allow_methods: "GET, PUT, POST, DELETE, PATCH, OPTIONS"
+                        allow_headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,Idempotency-Key,X-Idempotency-Key,X-Workspace-Id,X-Request-Id"
+                        allow_credentials: true
+                        max_age: "86400"
+
+                      routes:
+                        # Health & Liveness Probe
+                        - match:
+                            path: "/v1/health"
+                          route:
+                            cluster: career_be_cluster
+                            timeout: 2s
+
+                        # OpenAPI Swagger UI & JSON Specifications
+                        - match:
+                            prefix: "/docs"
+                          route:
+                            cluster: career_be_cluster
+                            timeout: 10s
+
+                        # Core Monolith REST API
+                        - match:
+                            prefix: "/v1/"
+                          route:
+                            cluster: career_be_cluster
+                            timeout: 15s
+                            retry_policy:
+                              retry_on: "5xx,connect-failure,refused-stream"
+                              num_retries: 3
+                              per_try_timeout: 5s
+                              retry_back_off:
+                                base_interval: 0.1s
+                                max_interval: 1.0s
+
+                # HTTP Filters Chain (Rate Limiting -> CORS -> Router)
+                http_filters:
+                  - name: envoy.filters.http.cors
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  # ----------------------------------------------------------------------------
+  # Upstream Clusters (NestJS Backend Service Pods)
+  # ----------------------------------------------------------------------------
+  clusters:
+    - name: career_be_cluster
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      connect_timeout: 2s
+      load_assignment:
+        cluster_name: career_be_cluster
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: 127.0.0.1
+                      port_value: 4000
+      # Circuit Breaker thresholds for 1M+ users peak concurrency
+      circuit_breakers:
+        thresholds:
+          - priority: DEFAULT
+            max_connections: 10000
+            max_pending_requests: 5000
+            max_requests: 15000
+            max_retries: 5
+      # Outlier detection for automated node ejection during degraded performance
+      outlier_detection:
+        consecutive_5xx: 5
+        interval: 10s
+        base_ejection_time: 30s
+        max_ejection_percent: 50

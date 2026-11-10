@@ -13,6 +13,7 @@ import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { RequestIdInterceptor } from './common/interceptors/request-id.interceptor';
+import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware';
 import { validateEnv } from './config/env.schema';
 
@@ -127,7 +128,11 @@ async function bootstrap() {
     })
   );
   app.useGlobalFilters(new HttpExceptionFilter());
-  app.useGlobalInterceptors(new RequestIdInterceptor(), new LoggingInterceptor());
+  app.useGlobalInterceptors(
+    new RequestIdInterceptor(),
+    new LoggingInterceptor(),
+    new IdempotencyInterceptor(),
+  );
 
   // OpenAPI documentation
   const config = new DocumentBuilder()

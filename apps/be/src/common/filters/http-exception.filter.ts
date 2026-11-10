@@ -1,8 +1,9 @@
 /**
  * HTTP exception filter.
  *
- * Produces consistent, structured error responses without leaking internal
- * implementation details, provider credentials or sensitive error data.
+ * Produces consistent, structured error responses adhering to RFC 9457 Problem Details
+ * for HTTP APIs without leaking internal implementation details, provider credentials
+ * or sensitive error data in production.
  */
 
 import {
@@ -13,7 +14,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { AppError } from '@career-intelligence/shared';
 
 @Catch()
@@ -23,6 +24,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
 
     let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
     let code = 'INTERNAL_SERVER_ERROR';
@@ -47,16 +49,37 @@ export class HttpExceptionFilter implements ExceptionFilter {
         process.env.NODE_ENV === 'production' ? 'An unexpected error occurred.' : exception.message;
     }
 
+    const instance = request?.url || '/';
+    const requestId =
+      (request as any)?.requestId ||
+      (request?.headers
+        ? request.headers['x-request-id'] || request.headers['x-correlation-id']
+        : undefined);
+
+    // RFC 9457 Problem Details standard object with full backward compatibility
     const errorResponse = {
+      // RFC 9457 Standard Properties
+      type: `https://api.careerintelligence.internal/errors/${code.toLowerCase()}`,
+      title: code.replace(/([A-Z])/g, ' $1').trim(),
+      status: statusCode,
+      detail: message,
+      instance,
+
+      // Backward-compatible properties
       statusCode,
       code,
       message,
-      ...(details ? { details } : {}),
+      ...(requestId ? { requestId } : {}),
+      ...(details ? { details, invalidParams: details } : {}),
       ...(process.env.NODE_ENV !== 'production' && exception instanceof Error
         ? { stack: exception.stack }
         : {}),
       timestamp: new Date().toISOString(),
     };
+
+    if (request?.headers?.accept?.includes('application/problem+json')) {
+      response.type('application/problem+json');
+    }
 
     response.status(statusCode).json(errorResponse);
   }
