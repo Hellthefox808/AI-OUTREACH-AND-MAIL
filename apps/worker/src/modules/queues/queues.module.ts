@@ -9,6 +9,7 @@ import { Module, OnModuleInit, OnModuleDestroy, Logger } from "@nestjs/common";
 import { BullModule } from "@nestjs/bullmq";
 import { ConfigService } from "@nestjs/config";
 import { QUEUE_NAMES } from "../../config/queues";
+import { QueueProcessorsModule } from "./processors.module";
 
 @Module({
   imports: [
@@ -21,9 +22,10 @@ import { QUEUE_NAMES } from "../../config/queues";
       inject: [ConfigService],
     }),
     BullModule.registerQueue(...QUEUE_NAMES.map((name) => ({ name }))),
+    QueueProcessorsModule,
   ],
   providers: [],
-  exports: [BullModule],
+  exports: [BullModule, QueueProcessorsModule],
 })
 export class QueuesModule implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(QueuesModule.name);

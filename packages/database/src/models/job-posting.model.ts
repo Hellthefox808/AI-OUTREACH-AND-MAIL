@@ -6,19 +6,14 @@
 
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import {
+  type JobType,
+  JOB_TYPES,
+  type WorkMode,
+  WORK_MODES,
+} from '@career-intelligence/shared';
 
-export const JOB_TYPES = [
-  'full_time',
-  'part_time',
-  'contract',
-  'internship',
-  'graduate',
-  'temporary',
-] as const;
-export type JobType = (typeof JOB_TYPES)[number];
-
-export const WORK_MODES = ['remote', 'hybrid', 'on_site'] as const;
-export type WorkMode = (typeof WORK_MODES)[number];
+export { JOB_TYPES, type JobType, WORK_MODES, type WorkMode };
 
 export class JobPosting extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Workspace', required: true, index: true })
@@ -27,79 +22,79 @@ export class JobPosting extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Company', index: true })
   companyId!: Types.ObjectId | null;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   title!: string;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   description!: string | null;
 
-  @Prop({ enum: JOB_TYPES, required: true })
+  @Prop({ type: String, enum: JOB_TYPES, required: true })
   type!: JobType;
 
-  @Prop({ enum: WORK_MODES, required: true })
+  @Prop({ type: String, enum: WORK_MODES, required: true })
   workMode!: WorkMode;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   location!: string | null;
 
   @Prop({ type: [String], default: [] })
   requiredSkills!: string[];
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   experienceRequirement!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Number, default: null })
   salaryMin!: number | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Number, default: null })
   salaryMax!: number | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   salaryCurrency!: string | null;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   applicationUrl!: string;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   sourceUrl!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   openedAt!: Date | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   closesAt!: Date | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   lastObservedAt!: Date | null;
 
-  @Prop({ default: true })
+  @Prop({ type: Boolean, default: true })
   isActive!: boolean;
 
-  @Prop({ default: false })
+  @Prop({ type: Boolean, default: false })
   isDuplicate!: boolean;
 
-  @Prop({ default: null })
+  @Prop({ type: Types.ObjectId, ref: 'JobPosting', default: null })
   duplicateOf!: Types.ObjectId | null;
 
-  @Prop({ default: Date.now })
+  @Prop({ type: Date, default: Date.now })
   createdAt!: Date;
 
-  @Prop({ default: Date.now })
+  @Prop({ type: Date, default: Date.now })
   updatedAt!: Date;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   deletedAt!: Date | null;
 }
 
 export const JobPostingSchema = SchemaFactory.createForClass(JobPosting);
 
+JobPostingSchema.index(
+  { workspaceId: 1, applicationUrl: 1 },
+  { unique: true, partialFilterExpression: { applicationUrl: { $type: "string" } } }
+);
+JobPostingSchema.index({ workspaceId: 1, createdAt: -1 });
 JobPostingSchema.index({ workspaceId: 1, companyId: 1 });
 JobPostingSchema.index({ workspaceId: 1, isActive: 1 });
-JobPostingSchema.index({ workspaceId: 1, type: 1, workMode: 1 });
-JobPostingSchema.index(
-  { applicationUrl: 1 },
-  { unique: true, partialFilterExpression: { applicationUrl: { $exists: true } } }
-);
 JobPostingSchema.index(
   { deletedAt: 1 },
   { partialFilterExpression: { deletedAt: { $exists: true } } }

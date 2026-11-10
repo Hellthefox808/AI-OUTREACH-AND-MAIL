@@ -10,49 +10,54 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
 export class User extends Document {
-  @Prop({ required: true, index: true, unique: true })
+  @Prop({ type: String, required: true, index: true, unique: true })
   email!: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   passwordHash!: string;
 
-  @Prop({ default: false })
+  @Prop({ type: Boolean, default: false })
   emailVerified!: boolean;
 
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Workspace' }], default: [] })
   workspaceIds!: Types.ObjectId[];
 
-  @Prop({ default: Date.now })
+  @Prop({ type: Date, default: Date.now })
   createdAt!: Date;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   lastSignedInAt!: Date | null;
 
-  @Prop({ default: false })
+  @Prop({ type: Boolean, default: false })
   mfaEnabled!: boolean;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   mfaSecret!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   passwordResetToken!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   passwordResetExpires!: Date | null;
 
-  @Prop({ default: 0 })
+  @Prop({ type: Number, default: 0 })
   failedLoginAttempts!: number;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   lockedUntil!: Date | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   deletedAt!: Date | null;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
 UserSchema.index({ email: 1 }, { unique: true });
+UserSchema.index({ workspaceIds: 1 });
+UserSchema.index(
+  { passwordResetToken: 1 },
+  { partialFilterExpression: { passwordResetToken: { $type: "string" } } }
+);
 UserSchema.index({ deletedAt: 1 }, { partialFilterExpression: { deletedAt: { $exists: true } } });
 
 export type UserDocument = User & Document;

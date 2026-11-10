@@ -7,36 +7,41 @@
 
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import mongoose from 'mongoose';
+import {
+  type CompanyVerificationStatus,
+  COMPANY_VERIFICATION_STATUSES,
+} from '@career-intelligence/shared';
 
 export class Company extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Workspace', required: true, index: true })
   workspaceId!: Types.ObjectId;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   legalName!: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   displayName!: string;
 
-  @Prop({ required: true, index: true, unique: true })
+  @Prop({ type: String, required: true })
   domain!: string;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   canonicalWebsite!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   headquarters!: string | null;
 
   @Prop({ type: [String], default: [] })
   operatingLocations!: string[];
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   country!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   state!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   city!: string | null;
 
   @Prop({ type: [String], default: [] })
@@ -48,61 +53,61 @@ export class Company extends Document {
   @Prop({ type: [String], default: [] })
   technologyCategories!: string[];
 
-  @Prop({ enum: ['TIER_1', 'TIER_2', 'TIER_3'], default: null, index: true })
+  @Prop({ type: String, enum: ['TIER_1', 'TIER_2', 'TIER_3'], default: null, index: true })
   tier!: 'TIER_1' | 'TIER_2' | 'TIER_3' | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   classificationRationale!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   companySize!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   careerPage!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   officialHiringPage!: string | null;
 
-  @Prop({ default: false })
+  @Prop({ type: Boolean, default: false })
   hiringActivity!: boolean;
 
-  @Prop({ default: 0 })
+  @Prop({ type: Number, default: 0 })
   activeJobOpenings!: number;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   parentOrganization!: string | null;
 
   @Prop({ type: [mongoose.Schema.Types.Mixed], default: [] })
   researchSources!: any[];
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   lastResearchedAt!: Date | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   dataFreshness!: string | null;
 
   @Prop({
-    enum: ['PUBLISHED', 'VERIFIED', 'UNVERIFIED', 'INVALID'],
+    type: String,
+    enum: COMPANY_VERIFICATION_STATUSES,
     default: 'UNVERIFIED',
     index: true,
   })
-  verificationStatus!: 'PUBLISHED' | 'VERIFIED' | 'UNVERIFIED' | 'INVALID';
+  verificationStatus!: CompanyVerificationStatus;
 
-  @Prop({ default: Date.now })
+  @Prop({ type: Date, default: Date.now })
   createdAt!: Date;
 
-  @Prop({ default: Date.now })
+  @Prop({ type: Date, default: Date.now })
   updatedAt!: Date;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   deletedAt!: Date | null;
 }
-
-import mongoose from 'mongoose';
 
 export const CompanySchema = SchemaFactory.createForClass(Company);
 
 CompanySchema.index({ workspaceId: 1, domain: 1 }, { unique: true });
+CompanySchema.index({ workspaceId: 1, createdAt: -1 });
 CompanySchema.index({ workspaceId: 1, tier: 1 });
 CompanySchema.index({ workspaceId: 1, verificationStatus: 1 });
 CompanySchema.index(

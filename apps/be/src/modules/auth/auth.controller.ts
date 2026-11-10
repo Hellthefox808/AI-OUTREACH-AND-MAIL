@@ -15,7 +15,7 @@
  *   GET  /v1/auth/me
  *
  * Access and refresh tokens are set as HTTP-only secure cookies so they never
- * touch frontend localStorage or extension storage.
+ * touch frontend localStorage or extension storage. Public endpoints bypass AuthGuard.
  */
 
 import {
@@ -29,11 +29,12 @@ import {
   HttpStatus,
 } from "@nestjs/common";
 import { Response, Request } from "express";
-import { ApiTags, ApiOperation, ApiBody, ApiResponse } from "@nestjs/swagger";
+import { ApiTags, ApiOperation, ApiBody, ApiResponse, ApiBearerAuth } from "@nestjs/swagger";
 import { z } from "zod";
 import { AuthService } from "./auth.service";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe";
 import { UnauthorizedError } from "@career-intelligence/shared";
+import { Public, WorkspaceAgnostic } from "../../common/decorators";
 
 const RegisterSchema = z.object({
   email: z.string().email(),
@@ -68,9 +69,11 @@ type MfaVerifyInput = z.infer<typeof MfaVerifySchema>;
 
 @ApiTags("auth")
 @Controller("auth")
+@WorkspaceAgnostic()
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
+  @Public()
   @Post("register")
   @ApiOperation({ summary: "Register a new user and workspace" })
   @ApiBody({ schema: { type: "object", properties: { email: { type: "string" }, password: { type: "string" }, name: { type: "string" }, workspaceSlug: { type: "string" } } } })
@@ -78,9 +81,11 @@ export class AuthController {
   @HttpCode(HttpStatus.CREATED)
   async register(@Body(new ZodValidationPipe(RegisterSchema)) body: RegisterInput, @Res() res: Response) {
     const result = await this.auth.register(body);
+    this.setTokenCookies(res, result.accessToken, result.refreshToken);
     return res.status(201).json(result);
   }
 
+  @Public()
   @Post("login")
   @ApiOperation({ summary: "Authenticate user and issue session tokens" })
   @ApiBody({ schema: { type: "object", properties: { email: { type: "string" }, password: { type: "string" } } } })
@@ -89,7 +94,7 @@ export class AuthController {
   async login(@Body(new ZodValidationPipe(LoginSchema)) body: LoginInput, @Res() res: Response) {
     const result = await this.auth.login(body);
     this.setTokenCookies(res, result.accessToken, result.refreshToken);
-    return res.json({ user: result.user });
+    return res.json({ user: result.user, accessToken: result.accessToken });
   }
 
   @Post("logout")
@@ -97,7 +102,13 @@ export class AuthController {
   @ApiResponse({ status: 200, description: "Logged out" })
   @HttpCode(HttpStatus.OK)
   async logout(@Req() req: Request, @Res() res: Response) {
-    const token = req.cookies?.access_token;
+    let token = req.cookies?.access_token;
+    if (!token && typeof req.headers.authorization === "string") {
+      const [scheme, credentials] = req.headers.authorization.split(" ");
+      if (scheme?.toLowerCase() === "bearer" && credentials) {
+        token = credentials.trim();
+      }
+    }
     if (token) {
       await this.auth.logout(token);
     }
@@ -105,6 +116,7 @@ export class AuthController {
     return res.json({ revoked: true });
   }
 
+  @ApiBearerAuth()
   @Post("sessions/revoke-all")
   @ApiOperation({ summary: "Revoke all sessions for the current user" })
   @ApiResponse({ status: 200, description: "All sessions revoked" })
@@ -119,20 +131,27 @@ export class AuthController {
     return res.json({ revoked: true });
   }
 
+  @Public()
   @Post("refresh")
   @ApiOperation({ summary: "Refresh access and refresh tokens" })
   @ApiBody({ schema: { type: "object", properties: { refresh_token: { type: "string" } } } })
   @ApiResponse({ status: 200, description: "Tokens refreshed" })
   @HttpCode(HttpStatus.OK)
-  async refresh(@Body("refresh_token") refreshToken: string, @Res() res: Response) {
+  async refresh(
+    @Req() req: Request,
+    @Body("refresh_token") bodyRefreshToken: string | undefined,
+    @Res() res: Response,
+  ) {
+    const refreshToken = req.cookies?.refresh_token || bodyRefreshToken;
     if (!refreshToken) {
       throw new UnauthorizedError("Refresh token required");
     }
     const result = await this.auth.refreshTokens(refreshToken);
     this.setTokenCookies(res, result.accessToken, result.refreshToken);
-    return res.json({ user: result.user });
+    return res.json({ user: result.user, accessToken: result.accessToken });
   }
 
+  @Public()
   @Post("password-reset-request")
   @ApiOperation({ summary: "Request a password reset token" })
   @ApiBody({ schema: { type: "object", properties: { email: { type: "string" } } } })
@@ -142,6 +161,7 @@ export class AuthController {
     return this.auth.passwordResetRequest(body.email);
   }
 
+  @Public()
   @Post("password-reset-confirm")
   @ApiOperation({ summary: "Confirm password reset with token" })
   @ApiBody({ schema: { type: "object", properties: { token: { type: "string" }, newPassword: { type: "string" } } } })
@@ -151,6 +171,7 @@ export class AuthController {
     return this.auth.passwordResetConfirm(body.token, body.newPassword);
   }
 
+  @ApiBearerAuth()
   @Post("mfa/enroll")
   @ApiOperation({ summary: "Begin TOTP MFA enrollment" })
   @ApiResponse({ status: 200, description: "Enrollment data" })
@@ -163,6 +184,7 @@ export class AuthController {
     return this.auth.mfaEnroll(user.id);
   }
 
+  @ApiBearerAuth()
   @Post("mfa/verify")
   @ApiOperation({ summary: "Verify TOTP token and enable MFA" })
   @ApiBody({ schema: { type: "object", properties: { token: { type: "string" } } } })
@@ -176,6 +198,7 @@ export class AuthController {
     return this.auth.mfaVerify(user.id, body.token);
   }
 
+  @ApiBearerAuth()
   @Post("mfa/disable")
   @ApiOperation({ summary: "Disable TOTP MFA" })
   @ApiResponse({ status: 200, description: "MFA disabled" })
@@ -188,6 +211,7 @@ export class AuthController {
     return this.auth.mfaDisable(user.id);
   }
 
+  @ApiBearerAuth()
   @Get("me")
   @ApiOperation({ summary: "Get current authenticated user" })
   @ApiResponse({ status: 200, description: "Current user" })

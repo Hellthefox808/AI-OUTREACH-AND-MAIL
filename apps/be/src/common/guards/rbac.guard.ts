@@ -2,8 +2,8 @@
  * RbacGuard.
  *
  * Checks that the authenticated user holds the permission(s) required by the
- * route. Required permissions are declared via `@SetMetadata("permissions", ...)`.
- * Default-deny: missing permission means 403.
+ * route. Required permissions are declared via `@Permissions(...)`.
+ * Default-deny: missing permission means 403. Public routes bypass RBAC.
  */
 
 import {
@@ -13,8 +13,7 @@ import {
   Logger,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-
-const PERMISSIONS_KEY = "permissions";
+import { PERMISSIONS_KEY, IS_PUBLIC_KEY } from "../decorators";
 
 @Injectable()
 export class RbacGuard {
@@ -23,9 +22,18 @@ export class RbacGuard {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredPermissions = this.reflector.get<string[]>(
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isPublic) {
+      return true;
+    }
+
+    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(
       PERMISSIONS_KEY,
-      context.getHandler()
+      [context.getHandler(), context.getClass()]
     );
 
     if (!requiredPermissions || requiredPermissions.length === 0) {
@@ -38,12 +46,7 @@ export class RbacGuard {
       throw new ForbiddenException("Authentication required");
     }
 
-    // Workspace-scoped permission check: a user holds a permission if any of
-    // their roles in the relevant workspace grants it. Role/permission
-    // resolution happens in the service layer via the PermissionPolicy;
-    // here we enforce that the user's token carries the permission claim.
     const userPermissions: string[] = user.permissions || [];
-
     const missing = requiredPermissions.filter(
       (p) => !userPermissions.includes(p)
     );

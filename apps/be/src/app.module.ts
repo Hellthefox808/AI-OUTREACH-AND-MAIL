@@ -27,7 +27,13 @@ import { WorkspaceScopeGuard } from "./common/guards/workspace-scope.guard";
           process.env.DATABASE_URL ||
           process.env.MONGODB_URI ||
           "mongodb://localhost:27017/career-intelligence-os";
-        return { uri };
+        return {
+          uri,
+          maxPoolSize: 50,
+          minPoolSize: 10,
+          serverSelectionTimeoutMS: 5000,
+          socketTimeoutMS: 45000,
+        };
       },
     }),
     JwtModule.registerAsync({

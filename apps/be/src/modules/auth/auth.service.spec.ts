@@ -6,6 +6,7 @@
  */
 
 import * as bcrypt from "bcryptjs";
+import * as crypto from "crypto";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { AuthService } from "./auth.service";
 
@@ -58,12 +59,14 @@ describe("AuthService", () => {
       incrementFailedLogin: vi.fn(),
       resetFailedLogin: vi.fn(),
       lock: vi.fn(),
+      withTransaction: vi.fn(async (cb: (session: any) => Promise<any>) => cb(null)),
     };
     sessions = {
       create: vi.fn(),
       revoke: vi.fn(),
       revokeAllForUser: vi.fn(),
       findByUser: vi.fn(),
+      findByRefreshTokenHash: vi.fn(),
     };
     workspaces = {
       findBySlug: vi.fn(),
@@ -89,9 +92,9 @@ describe("AuthService", () => {
       seedWorkspace: vi.fn(),
     };
     jwt = {
-            sign: vi.fn((_payload: any, _opts: any) =>
-              _opts.secret === "access-secret" ? "access-token" : "refresh-token"
-            ),
+      sign: vi.fn((_payload: any, _opts: any) =>
+        _opts.secret === "access-secret" ? "access-token" : "refresh-token"
+      ),
       verify: vi.fn((token: string, _opts: any) => {
         if (token === "valid-refresh") return { sub: userId, type: "refresh" };
         throw new Error("invalid");
@@ -181,11 +184,12 @@ describe("AuthService", () => {
   });
 
   describe("logout", () => {
-    it("should revoke session", async () => {
+    it("should revoke session using SHA-256 hash", async () => {
       sessions.revoke.mockResolvedValue(undefined);
       const result = await service.logout("access-token");
       expect(result.revoked).toBe(true);
-      expect(sessions.revoke).toHaveBeenCalledWith("access-token");
+      const expectedHash = crypto.createHash("sha256").update("access-token").digest("hex");
+      expect(sessions.revoke).toHaveBeenCalledWith(expectedHash);
     });
   });
 
@@ -201,12 +205,16 @@ describe("AuthService", () => {
   describe("refreshTokens", () => {
     it("should return new tokens for valid refresh token", async () => {
       users.findById.mockResolvedValue(user as any);
-      sessions.findByUser.mockResolvedValue([
-        { refreshTokenHash: "$2b$12$fakehash" },
-      ] as any);
+      const refreshHash = crypto.createHash("sha256").update("valid-refresh").digest("hex");
+      sessions.findByRefreshTokenHash.mockResolvedValue({
+        tokenHash: "old-access-hash",
+        refreshTokenHash: refreshHash,
+      } as any);
+      sessions.create.mockResolvedValue({} as any);
 
       const result = await service.refreshTokens("valid-refresh");
       expect(result.accessToken).toBe("access-token");
+      expect(sessions.revoke).toHaveBeenCalledWith("old-access-hash");
     });
 
     it("should throw for invalid refresh token", async () => {

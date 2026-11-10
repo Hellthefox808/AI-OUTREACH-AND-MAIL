@@ -7,6 +7,10 @@
 
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import {
+  type VerificationStatus,
+  VERIFICATION_STATUSES,
+} from '@career-intelligence/shared';
 
 export class Recruiter extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Workspace', required: true, index: true })
@@ -15,81 +19,57 @@ export class Recruiter extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Company', index: true })
   companyId!: Types.ObjectId | null;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   name!: string;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   designation!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   department!: string | null;
 
-  @Prop({ default: null, index: true })
+  @Prop({ type: String, default: null })
   email!: string | null;
 
   @Prop({
-    enum: [
-      'PUBLISHED',
-      'INFERRED',
-      'SYNTAX_VALID',
-      'DOMAIN_VALID',
-      'MX_AVAILABLE',
-      'PROVIDER_CHECKED',
-      'VERIFIED',
-      'UNVERIFIED',
-      'RISKY',
-      'CATCH_ALL',
-      'INVALID',
-      'SUPPRESSED',
-    ],
+    type: String,
+    enum: VERIFICATION_STATUSES,
     default: 'UNVERIFIED',
     index: true,
   })
-  verificationStatus!:
-    | 'PUBLISHED'
-    | 'INFERRED'
-    | 'SYNTAX_VALID'
-    | 'DOMAIN_VALID'
-    | 'MX_AVAILABLE'
-    | 'PROVIDER_CHECKED'
-    | 'VERIFIED'
-    | 'UNVERIFIED'
-    | 'RISKY'
-    | 'CATCH_ALL'
-    | 'INVALID'
-    | 'SUPPRESSED';
+  verificationStatus!: VerificationStatus;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   profileUrl!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   sourceUrl!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   discoveryMethod!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Number, default: null })
   confidence!: number | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   contactRelevance!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   lastResearchedAt!: Date | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   lastVerifiedAt!: Date | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   notes!: string | null;
 
-  @Prop({ default: Date.now })
+  @Prop({ type: Date, default: Date.now })
   createdAt!: Date;
 
-  @Prop({ default: Date.now })
+  @Prop({ type: Date, default: Date.now })
   updatedAt!: Date;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   deletedAt!: Date | null;
 }
 
@@ -97,8 +77,9 @@ export const RecruiterSchema = SchemaFactory.createForClass(Recruiter);
 
 RecruiterSchema.index(
   { workspaceId: 1, email: 1 },
-  { unique: true, partialFilterExpression: { email: { $exists: true } } }
+  { unique: true, partialFilterExpression: { email: { $type: "string" } } }
 );
+RecruiterSchema.index({ workspaceId: 1, createdAt: -1 });
 RecruiterSchema.index({ workspaceId: 1, companyId: 1 });
 RecruiterSchema.index({ workspaceId: 1, verificationStatus: 1 });
 RecruiterSchema.index(

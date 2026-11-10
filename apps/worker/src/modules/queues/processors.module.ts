@@ -2,29 +2,24 @@
  * Queue processor registry.
  *
  * Registers all BullMQ queue processors. Each processor handles a specific
- * queue from the central registry. Processors are added here as they are
- * implemented.
+ * queue from the central registry.
  */
 
 import { Module } from "@nestjs/common";
-import { BullModule } from "@nestjs/bullmq";
-import { QUEUE_NAMES } from "../../config/queues";
-
-// Example processor skeleton — uncomment and implement when workload is ready:
-// @Processor(QUEUE_NAMES[0])
-// export class CompanyResearchProcessor extends BaseQueueProcessor {
-//   protected readonly logger = new Logger(CompanyResearchProcessor.name);
-//
-//   async process(job: Job<any>) {
-//     const idempotencyKey = this.requireIdempotencyKey(job.id);
-//     // ... implement research logic
-//     return { status: "completed", idempotencyKey };
-//   }
-// }
+import { CompanyResearchProcessor } from "./company-research.processor";
+import { ContactVerificationProcessor } from "./contact-verification.processor";
+import { JobDiscoveryProcessor } from "./job-discovery.processor";
 
 @Module({
-  imports: [BullModule.registerQueue(...QUEUE_NAMES.map((name) => ({ name })))],
-  providers: [],
-  exports: [BullModule],
+  providers: [
+    CompanyResearchProcessor,
+    ContactVerificationProcessor,
+    JobDiscoveryProcessor,
+  ],
+  exports: [
+    CompanyResearchProcessor,
+    ContactVerificationProcessor,
+    JobDiscoveryProcessor,
+  ],
 })
 export class QueueProcessorsModule {}

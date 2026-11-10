@@ -50,10 +50,10 @@ export interface BaseEntity extends Timestamped, SoftDeletable {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Verification states                                               */
+/*  Verification statuses / states                                    */
 /* ------------------------------------------------------------------ */
 
-export const VERIFICATION_STATES = [
+export const VERIFICATION_STATUSES = [
   'PUBLISHED',
   'INFERRED',
   'SYNTAX_VALID',
@@ -68,9 +68,23 @@ export const VERIFICATION_STATES = [
   'SUPPRESSED',
 ] as const;
 
-export type VerificationState = (typeof VERIFICATION_STATES)[number];
+export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
+export const VerificationStatusSchema = z.enum(VERIFICATION_STATUSES);
 
-export const VerificationStateSchema = z.enum(VERIFICATION_STATES);
+// Backward-compatibility aliases
+export const VERIFICATION_STATES = VERIFICATION_STATUSES;
+export type VerificationState = VerificationStatus;
+export const VerificationStateSchema = VerificationStatusSchema;
+
+export const COMPANY_VERIFICATION_STATUSES = [
+  'PUBLISHED',
+  'VERIFIED',
+  'UNVERIFIED',
+  'INVALID',
+] as const;
+
+export type CompanyVerificationStatus = (typeof COMPANY_VERIFICATION_STATUSES)[number];
+export const CompanyVerificationStatusSchema = z.enum(COMPANY_VERIFICATION_STATUSES);
 
 /* ------------------------------------------------------------------ */
 /*  Company tier                                                      */
@@ -130,10 +144,12 @@ export const JOB_TYPES = [
 ] as const;
 
 export type JobType = (typeof JOB_TYPES)[number];
+export const JobTypeSchema = z.enum(JOB_TYPES);
 
 export const WORK_MODES = ['remote', 'hybrid', 'on_site'] as const;
 
 export type WorkMode = (typeof WORK_MODES)[number];
+export const WorkModeSchema = z.enum(WORK_MODES);
 
 /* ------------------------------------------------------------------ */
 /*  Campaign / sequence states                                        */
@@ -187,11 +203,39 @@ export interface PaginationInput {
   cursor?: string;
 }
 
+export const PaginationQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50).optional(),
+  cursor: z.string().optional(),
+});
+export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
+
+export const PaginationInputSchema = z.object({
+  limit: z.number().int().min(1).max(100).optional(),
+  cursor: z.string().optional(),
+});
+
 export interface PaginatedResult<T> {
   items: T[];
   nextCursor: string | null;
   hasMore: boolean;
+  total?: number;
+  limit?: number;
+  offset?: number;
 }
+
+export function createPaginatedResultSchema<T extends z.ZodTypeAny>(itemSchema: T) {
+  return z.object({
+    items: z.array(itemSchema),
+    nextCursor: z.string().nullable().optional(),
+    hasMore: z.boolean(),
+    total: z.number().optional(),
+    limit: z.number().optional(),
+    offset: z.number().optional(),
+  });
+}
+
+export const PaginatedResultSchema = createPaginatedResultSchema(z.unknown());
+export type PaginatedResultDto = z.infer<typeof PaginatedResultSchema>;
 
 /* ------------------------------------------------------------------ */
 /*  Permissions                                                       */
@@ -354,6 +398,142 @@ export const GMAIL_SCOPES = {
 /* ------------------------------------------------------------------ */
 
 export const ObjectIdSchema = z.string().min(1);
+
+/* ------------------------------------------------------------------ */
+/*  Company DTO Schemas                                               */
+/* ------------------------------------------------------------------ */
+
+export const CreateCompanySchema = z.object({
+  legalName: z.string().min(1, 'Legal name is required'),
+  displayName: z.string().min(1, 'Display name is required'),
+  domain: z.string().min(1, 'Domain is required'),
+  canonicalWebsite: z.string().url().optional().or(z.literal('')),
+  headquarters: z.string().optional(),
+  country: z.string().optional(),
+  state: z.string().optional(),
+  city: z.string().optional(),
+  industries: z.array(z.string()).default([]),
+  subIndustries: z.array(z.string()).default([]),
+  operatingLocations: z.array(z.string()).default([]),
+  technologyCategories: z.array(z.string()).default([]),
+  tier: CompanyTierSchema.optional(),
+  classificationRationale: z.string().optional(),
+  companySize: z.string().optional(),
+  careerPage: z.string().url().optional().or(z.literal('')),
+  officialHiringPage: z.string().url().optional().or(z.literal('')),
+  hiringActivity: z.boolean().default(false),
+  activeJobOpenings: z.number().int().min(0).default(0),
+  parentOrganization: z.string().optional(),
+  verificationStatus: CompanyVerificationStatusSchema.default('UNVERIFIED'),
+});
+
+export const UpdateCompanySchema = CreateCompanySchema.partial();
+
+export type CreateCompanyInput = z.infer<typeof CreateCompanySchema>;
+export type UpdateCompanyInput = z.infer<typeof UpdateCompanySchema>;
+
+/* ------------------------------------------------------------------ */
+/*  Recruiter DTO Schemas                                             */
+/* ------------------------------------------------------------------ */
+
+export const CreateRecruiterSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  companyId: z.string().optional(),
+  designation: z.string().optional(),
+  department: z.string().optional(),
+  email: z.string().email().optional(),
+  profileUrl: z.string().url().optional().or(z.literal('')),
+  sourceUrl: z.string().url().optional().or(z.literal('')),
+  discoveryMethod: z.string().optional(),
+  confidence: z.number().min(0).max(100).optional(),
+  contactRelevance: z.string().optional(),
+  notes: z.string().optional(),
+  verificationStatus: VerificationStatusSchema.default('UNVERIFIED'),
+});
+
+export const UpdateRecruiterSchema = CreateRecruiterSchema.partial();
+
+export type CreateRecruiterInput = z.infer<typeof CreateRecruiterSchema>;
+export type UpdateRecruiterInput = z.infer<typeof UpdateRecruiterSchema>;
+
+/* ------------------------------------------------------------------ */
+/*  Job Posting DTO Schemas                                           */
+/* ------------------------------------------------------------------ */
+
+export const CreateJobPostingSchema = z.object({
+  title: z.string().min(1, 'Job title is required'),
+  companyId: z.string().optional(),
+  description: z.string().optional(),
+  type: JobTypeSchema,
+  workMode: WorkModeSchema,
+  location: z.string().optional(),
+  requiredSkills: z.array(z.string()).default([]),
+  experienceRequirement: z.string().optional(),
+  salaryMin: z.number().min(0, 'salaryMin must be non-negative').optional(),
+  salaryMax: z.number().min(0, 'salaryMax must be non-negative').optional(),
+  salaryCurrency: z.string().optional(),
+  applicationUrl: z.string().url('Application URL must be a valid URL'),
+  sourceUrl: z.string().url().optional().or(z.literal('')),
+  openedAt: z.coerce.date().optional(),
+  closesAt: z.coerce.date().optional(),
+  isActive: z.boolean().default(true),
+  isDuplicate: z.boolean().default(false),
+  duplicateOf: z.string().optional(),
+});
+
+export const UpdateJobPostingSchema = CreateJobPostingSchema.partial();
+
+export type CreateJobPostingInput = z.infer<typeof CreateJobPostingSchema>;
+export type UpdateJobPostingInput = z.infer<typeof UpdateJobPostingSchema>;
+
+// Aliases for compatibility with apps/be
+export const CreateJobSchema = CreateJobPostingSchema;
+export const UpdateJobSchema = UpdateJobPostingSchema;
+export type CreateJobInput = CreateJobPostingInput;
+export type UpdateJobInput = UpdateJobPostingInput;
+
+/* ------------------------------------------------------------------ */
+/*  Workspace & Auth DTO Schemas                                      */
+/* ------------------------------------------------------------------ */
+
+export const CreateWorkspaceSchema = z.object({
+  name: z.string().min(1, 'Workspace name is required'),
+  slug: z
+    .string()
+    .min(1, 'Slug is required')
+    .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase alphanumeric characters and hyphens'),
+});
+export type CreateWorkspaceInput = z.infer<typeof CreateWorkspaceSchema>;
+
+export const RegisterSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  name: z.string().optional(),
+  workspaceSlug: z.string().optional(),
+});
+export type RegisterInput = z.infer<typeof RegisterSchema>;
+
+export const LoginSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
+export type LoginInput = z.infer<typeof LoginSchema>;
+
+export const PasswordResetRequestSchema = z.object({
+  email: z.string().email('Invalid email address'),
+});
+export type PasswordResetRequestInput = z.infer<typeof PasswordResetRequestSchema>;
+
+export const PasswordResetConfirmSchema = z.object({
+  token: z.string().min(1, 'Reset token is required'),
+  newPassword: z.string().min(8, 'New password must be at least 8 characters'),
+});
+export type PasswordResetConfirmInput = z.infer<typeof PasswordResetConfirmSchema>;
+
+export const MfaVerifySchema = z.object({
+  token: z.string().length(6, 'MFA code must be exactly 6 characters'),
+});
+export type MfaVerifyInput = z.infer<typeof MfaVerifySchema>;
 
 /* ------------------------------------------------------------------ */
 /*  Errors                                                            */

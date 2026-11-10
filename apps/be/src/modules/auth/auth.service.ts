@@ -2,7 +2,7 @@
  * Auth service.
  *
  * Implements session-based identity: password registration/login, JWT access
- * + refresh tokens (refresh token hashed and stored in Session), logout /
+ * + refresh tokens (refresh token hashed via SHA-256 and stored in Session), logout /
  * revoke, password reset, and TOTP MFA. Never logs passwords or tokens.
  */
 
@@ -16,7 +16,7 @@ import * as bcrypt from "bcryptjs";
 import * as speakeasy from "speakeasy";
 import * as qrcode from "qrcode";
 import * as crypto from "crypto";
-import { Types } from "mongoose";
+import { Types, ClientSession } from "mongoose";
 import {
   UserRepository,
   SessionRepository,
@@ -72,16 +72,25 @@ export class AuthService {
   }
 
   /**
+   * Deterministic SHA-256 hash for high-entropy tokens (sessions, refresh tokens, reset tokens).
+   */
+  hashToken(token: string): string {
+    return crypto.createHash("sha256").update(token).digest("hex");
+  }
+
+  /**
    * Loads permission keys for a user in a workspace by resolving their
    * membership → role → permissions chain.
    */
   async loadUserPermissions(
     userId: string | Types.ObjectId,
     workspaceId: string,
+    session?: ClientSession,
   ): Promise<string[]> {
     const membership = await this.memberships.findByUserAndWorkspace(
       userId,
       workspaceId,
+      session,
     );
     if (!membership) {
       return [];
@@ -90,6 +99,7 @@ export class AuthService {
     const role = await this.roles.findByName(
       (membership as any).role,
       workspaceId,
+      session,
     );
     if (!role) {
       return [];
@@ -98,7 +108,7 @@ export class AuthService {
     const permissionIds: Types.ObjectId[] = (role as any).permissionIds || [];
     const permissions = await Promise.all(
       permissionIds.map((pid) =>
-        this.permissions.findById(pid, workspaceId),
+        this.permissions.findById(pid, workspaceId, session),
       ),
     );
 
@@ -118,6 +128,7 @@ export class AuthService {
   /**
    * Register a new user and (optionally) workspace. Creates a default workspace
    * if none is provided, then signs the user in.
+   * Atomically executes in a MongoDB transaction with deterministic session propagation.
    */
   async register(input: {
     email: string;
@@ -125,50 +136,65 @@ export class AuthService {
     name?: string;
     workspaceSlug?: string;
   }) {
-    const existing = await this.users.findByEmail(input.email);
-    if (existing) {
-      throw new ConflictError("User already registered with this email");
-    }
-
-    let workspaceId: string;
-    if (input.workspaceSlug) {
-      const workspace = await this.workspaces.findBySlug(input.workspaceSlug);
-      if (!workspace) {
-        throw new NotFoundError("Workspace", input.workspaceSlug);
+    return this.users.withTransaction(async (session) => {
+      const existing = await this.users.findByEmail(input.email, undefined, session);
+      if (existing) {
+        throw new ConflictError("User already registered with this email");
       }
-      workspaceId = (workspace as any)._id.toString();
-    } else {
-      const created = await this.workspaces.create({
-        slug: input.email.split("@")[0],
-        name: input.name || input.email.split("@")[0],
-        ownerId: undefined,
-      });
-      workspaceId = (created as any)._id.toString();
-    }
 
-    const passwordHash = await this.hashPassword(input.password);
-    const user = await this.users.create({
-      email: input.email,
-      passwordHash,
-      workspaceIds: [workspaceId as any],
-      emailVerified: false,
-      mfaEnabled: false,
-      failedLoginAttempts: 0,
+      let workspaceId: string;
+      if (input.workspaceSlug) {
+        const workspace = await this.workspaces.findBySlug(input.workspaceSlug, session);
+        if (!workspace) {
+          throw new NotFoundError("Workspace", input.workspaceSlug);
+        }
+        workspaceId = (workspace as any)._id.toString();
+      } else {
+        const created = await this.workspaces.create(
+          {
+            slug: input.email.split("@")[0],
+            name: input.name || input.email.split("@")[0],
+            ownerId: undefined,
+          },
+          { session }
+        );
+        workspaceId = (created as any)._id.toString();
+      }
+
+      const passwordHash = await this.hashPassword(input.password);
+      const user = await this.users.create(
+        {
+          email: input.email,
+          passwordHash,
+          workspaceIds: [workspaceId as any],
+          emailVerified: false,
+          mfaEnabled: false,
+          failedLoginAttempts: 0,
+        },
+        { session }
+      );
+
+      if (!user) {
+        throw new Error('Failed to create user');
+      }
+
+      // Seed default permissions and roles for the workspace
+      await this.seed.seedWorkspace(workspaceId, { session });
+
+      // Assign the user the admin role in this workspace
+      await this.memberships.create(
+        {
+          userId: user._id,
+          workspaceId: new Types.ObjectId(workspaceId),
+          role: ROLES.ADMIN,
+        },
+        { session }
+      );
+
+      const permissions = await this.loadUserPermissions(user._id, workspaceId, session);
+
+      return this.createSession(user as any, workspaceId, permissions, { session });
     });
-
-    // Seed default permissions and roles for the workspace
-    await this.seed.seedWorkspace(workspaceId);
-
-    // Assign the user the admin role in this workspace
-    await this.memberships.create({
-      userId: user._id,
-      workspaceId: new Types.ObjectId(workspaceId),
-      role: ROLES.ADMIN,
-    });
-
-    const permissions = await this.loadUserPermissions(user._id, workspaceId);
-
-    return this.createSession(user as any, workspaceId, permissions);
   }
 
   /**
@@ -219,7 +245,8 @@ export class AuthService {
     return this.createSession(user as any, workspaceId, permissions);
   }
 
-  async logout(tokenHash: string) {
+  async logout(token: string) {
+    const tokenHash = this.hashToken(token);
     await this.sessions.revoke(tokenHash);
     return { revoked: true };
   }
@@ -233,12 +260,14 @@ export class AuthService {
     user: any,
     workspaceId: string,
     permissions: string[] = [],
+    options?: { session?: ClientSession },
   ) {
     const payload = {
       sub: user._id,
       email: user.email,
       workspaceId,
       permissions,
+      jti: crypto.randomUUID(),
     };
 
     const accessToken = this.jwt.sign(payload, {
@@ -246,24 +275,31 @@ export class AuthService {
       expiresIn: ACCESS_TTL,
     });
 
-    const refreshPayload = { sub: user._id, type: "refresh" };
+    const refreshPayload = {
+      sub: user._id,
+      type: "refresh",
+      jti: crypto.randomUUID(),
+    };
     const refreshToken = this.jwt.sign(refreshPayload, {
       secret: this.jwtRefreshSecret,
       expiresIn: REFRESH_TTL,
     });
 
-    const accessTokenHash = await this.hashPassword(accessToken);
-    const refreshTokenHash = await this.hashPassword(refreshToken);
+    const accessTokenHash = this.hashToken(accessToken);
+    const refreshTokenHash = this.hashToken(refreshToken);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const workspaceObjectId = new Types.ObjectId(workspaceId);
 
-    await this.sessions.create({
-      userId: user._id,
-      workspaceId: workspaceObjectId,
-      tokenHash: accessTokenHash,
-      refreshTokenHash,
-      expiresAt,
-    });
+    await this.sessions.create(
+      {
+        userId: user._id,
+        workspaceId: workspaceObjectId,
+        tokenHash: accessTokenHash,
+        refreshTokenHash,
+        expiresAt,
+      },
+      options,
+    );
 
     return {
       accessToken,
@@ -297,18 +333,25 @@ export class AuthService {
     }
 
     const workspaceId = (user as any).workspaceIds?.[0];
-    const sessions = await this.sessions.findByUser(
-      (user as any)._id,
-      workspaceId as string
-    );
-    const valid = sessions.some((s: any) =>
-      bcrypt.compareSync(refreshToken, (s as any).refreshTokenHash)
-    );
-    if (!valid) {
+    const refreshTokenHash = this.hashToken(refreshToken);
+
+    // Verify session exists and is active
+    let session = await this.sessions.findByRefreshTokenHash(refreshTokenHash);
+    if (!session) {
+      // Fallback check for session list
+      const sessions = await this.sessions.findByUser((user as any)._id, workspaceId);
+      session = sessions.find((s: any) => s.refreshTokenHash === refreshTokenHash) || null;
+    }
+
+    if (!session) {
       throw new UnauthorizedError("Refresh token revoked or invalid");
     }
 
-    return this.createSession(user as any, workspaceId as string);
+    // Revoke previous session on refresh (refresh token rotation)
+    await this.sessions.revoke(session.tokenHash);
+
+    const permissions = await this.loadUserPermissions(user._id, workspaceId);
+    return this.createSession(user as any, workspaceId as string, permissions);
   }
 
   async passwordResetRequest(email: string) {
@@ -319,7 +362,7 @@ export class AuthService {
     }
 
     const token = crypto.randomBytes(32).toString("hex");
-    const hash = await this.hashPassword(token);
+    const hash = this.hashToken(token);
     const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     await this.users.updateById((user as any)._id, {
@@ -334,7 +377,7 @@ export class AuthService {
   }
 
   async passwordResetConfirm(token: string, newPassword: string) {
-    const hash = await this.hashPassword(token);
+    const hash = this.hashToken(token);
     const user = await this.users.findByPasswordResetToken(hash);
 
     if (!user) {

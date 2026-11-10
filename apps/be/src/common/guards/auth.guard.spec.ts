@@ -14,11 +14,15 @@ vi.mock("../../modules/auth/auth.service", () => ({
 
 describe("AuthGuard", () => {
   let guard: AuthGuard;
+  let reflector: any;
   let jwt: any;
   let config: any;
   let auth: any;
 
   beforeEach(() => {
+    reflector = {
+      getAllAndOverride: vi.fn(() => false),
+    };
     jwt = {
       verify: vi.fn(),
     } as any;
@@ -29,13 +33,29 @@ describe("AuthGuard", () => {
       validateUser: vi.fn(),
     } as any;
 
-    guard = new AuthGuard(jwt as any, config as any, auth as any);
+    guard = new AuthGuard(reflector as any, jwt as any, config as any, auth as any);
+  });
+
+  it("should bypass authentication when endpoint is decorated with @Public()", async () => {
+    reflector.getAllAndOverride.mockReturnValue(true);
+    const ctx = {
+      getHandler: () => ({}),
+      getClass: () => ({}),
+      switchToHttp: () => ({
+        getRequest: () => ({ cookies: {} }),
+      }),
+    } as unknown as ExecutionContext;
+
+    const result = await guard.canActivate(ctx);
+    expect(result).toBe(true);
   });
 
   it("should throw UnauthorizedException when no token", async () => {
     const ctx = {
+      getHandler: () => ({}),
+      getClass: () => ({}),
       switchToHttp: () => ({
-        getRequest: () => ({ cookies: {} }),
+        getRequest: () => ({ cookies: {}, headers: {} }),
       }),
     } as unknown as ExecutionContext;
 
@@ -47,16 +67,18 @@ describe("AuthGuard", () => {
       throw new Error("invalid");
     });
     const ctx = {
+      getHandler: () => ({}),
+      getClass: () => ({}),
       switchToHttp: () => ({
-        getRequest: () => ({ cookies: { access_token: "bad-token" } }),
+        getRequest: () => ({ cookies: { access_token: "bad-token" }, headers: {} }),
       }),
     } as unknown as ExecutionContext;
 
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 
-  it("should attach user and return true when valid", async () => {
-    jwt.verify.mockReturnValue({ sub: "user-1" });
+  it("should attach user and return true when valid cookie token", async () => {
+    jwt.verify.mockReturnValue({ sub: "user-1", workspaceId: "ws-1" });
     auth.validateUser.mockResolvedValue({
       id: "user-1",
       email: "alice@example.com",
@@ -64,8 +86,30 @@ describe("AuthGuard", () => {
       mfaEnabled: false,
     });
     const ctx = {
+      getHandler: () => ({}),
+      getClass: () => ({}),
       switchToHttp: () => ({
-        getRequest: () => ({ cookies: { access_token: "good-token" } }),
+        getRequest: () => ({ cookies: { access_token: "good-token" }, headers: {} }),
+      }),
+    } as unknown as ExecutionContext;
+
+    const result = await guard.canActivate(ctx);
+    expect(result).toBe(true);
+  });
+
+  it("should support Authorization: Bearer token header", async () => {
+    jwt.verify.mockReturnValue({ sub: "user-1", workspaceId: "ws-1" });
+    auth.validateUser.mockResolvedValue({
+      id: "user-1",
+      email: "alice@example.com",
+      workspaceIds: ["ws-1"],
+      mfaEnabled: false,
+    });
+    const ctx = {
+      getHandler: () => ({}),
+      getClass: () => ({}),
+      switchToHttp: () => ({
+        getRequest: () => ({ cookies: {}, headers: { authorization: "Bearer bearer-token-xyz" } }),
       }),
     } as unknown as ExecutionContext;
 
@@ -74,11 +118,13 @@ describe("AuthGuard", () => {
   });
 
   it("should throw when user not found", async () => {
-    jwt.verify.mockReturnValue({ sub: "user-1" });
+    jwt.verify.mockReturnValue({ sub: "user-1", workspaceId: "ws-1" });
     auth.validateUser.mockResolvedValue(null);
     const ctx = {
+      getHandler: () => ({}),
+      getClass: () => ({}),
       switchToHttp: () => ({
-        getRequest: () => ({ cookies: { access_token: "good-token" } }),
+        getRequest: () => ({ cookies: { access_token: "good-token" }, headers: {} }),
       }),
     } as unknown as ExecutionContext;
 

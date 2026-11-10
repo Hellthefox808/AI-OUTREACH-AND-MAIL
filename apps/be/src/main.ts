@@ -8,6 +8,7 @@ import {
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -99,6 +100,9 @@ async function bootstrap() {
       },
     }),
   );
+
+  // Cookie parsing for HTTP-only JWT session and CSRF tokens
+  app.use(cookieParser());
 
   // CORS — tightened in production via ALLOWED_ORIGINS env
   const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')

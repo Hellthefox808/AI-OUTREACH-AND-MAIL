@@ -12,7 +12,7 @@
  */
 
 import { Injectable, OnModuleInit, Logger } from "@nestjs/common";
-import { Types } from "mongoose";
+import { Types, ClientSession } from "mongoose";
 import { WorkspaceRepository } from "@career-intelligence/database";
 import { PermissionRepository } from "@career-intelligence/database";
 import { RoleRepository } from "@career-intelligence/database";
@@ -89,7 +89,7 @@ export class SeedService implements OnModuleInit {
    * Ensures default permissions and roles exist for a workspace.
    * Call this after creating a new workspace.
    */
-  async seedWorkspace(workspaceId: string) {
+  async seedWorkspace(workspaceId: string, options?: { session?: ClientSession }) {
     const workspaceObjectId = new Types.ObjectId(workspaceId);
 
     // Seed permissions
@@ -97,14 +97,17 @@ export class SeedService implements OnModuleInit {
     for (const [key, description] of Object.entries(
       PERMISSION_DESCRIPTIONS,
     ) as [PermissionKey, string][]) {
-      let perm = await this.permissions.findByKey(key, workspaceObjectId);
+      let perm = await this.permissions.findByKey(key, workspaceObjectId, options?.session);
       if (!perm) {
-        perm = await this.permissions.create({
-          workspaceId: workspaceObjectId,
-          key,
-          description,
-          isSystem: true,
-        });
+        perm = (await this.permissions.create(
+          {
+            workspaceId: workspaceObjectId,
+            key,
+            description,
+            isSystem: true,
+          },
+          options,
+        )) ?? null;
       }
       permissionMap.set(key, (perm as any)._id as Types.ObjectId);
     }
@@ -113,24 +116,28 @@ export class SeedService implements OnModuleInit {
     for (const [roleName, permissionKeys] of Object.entries(
       ROLE_PERMISSIONS,
     ) as [RoleKey, PermissionKey[]][]) {
-      const role = await this.roles.findByName(roleName, workspaceObjectId);
+      const role = await this.roles.findByName(roleName, workspaceObjectId, options?.session);
       const rolePermissionIds: Types.ObjectId[] = permissionKeys
         .map((k) => permissionMap.get(k))
         .filter((id): id is Types.ObjectId => id !== undefined);
 
       if (!role) {
-        await this.roles.create({
-          workspaceId: workspaceObjectId,
-          name: roleName,
-          description: `Default ${roleName} role`,
-          permissionIds: rolePermissionIds,
-          isSystem: true,
-        });
+        await this.roles.create(
+          {
+            workspaceId: workspaceObjectId,
+            name: roleName,
+            description: `Default ${roleName} role`,
+            permissionIds: rolePermissionIds,
+            isSystem: true,
+          },
+          options,
+        );
       } else {
         await this.roles.updateById(
           (role as any)._id,
           { permissionIds: rolePermissionIds },
           workspaceObjectId,
+          options,
         );
       }
     }

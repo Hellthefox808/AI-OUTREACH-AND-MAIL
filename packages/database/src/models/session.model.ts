@@ -16,31 +16,31 @@ export class Session extends Document {
   @Prop({ type: Types.ObjectId, ref: "Workspace", required: true, index: true })
   workspaceId!: Types.ObjectId;
 
-  @Prop({ required: true, index: true, unique: true })
+  @Prop({ type: String, required: true, index: true, unique: true })
   tokenHash!: string;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   refreshTokenHash!: string | null;
 
-  @Prop({ required: true })
+  @Prop({ type: Date, required: true })
   expiresAt!: Date;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   revokedAt!: Date | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   lastUsedAt!: Date | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   ipAddress!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   userAgent!: string | null;
 
-  @Prop({ default: Date.now })
+  @Prop({ type: Date, default: Date.now })
   createdAt!: Date;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   deletedAt!: Date | null;
 }
 
@@ -48,7 +48,10 @@ export const SessionSchema = SchemaFactory.createForClass(Session);
 
 SessionSchema.index({ userId: 1, revokedAt: 1 });
 SessionSchema.index({ workspaceId: 1, revokedAt: 1 });
-SessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+SessionSchema.index(
+  { refreshTokenHash: 1 },
+  { partialFilterExpression: { refreshTokenHash: { $type: "string" } } }
+);
 SessionSchema.index({ deletedAt: 1 }, { partialFilterExpression: { deletedAt: { $exists: true } } });
 
 export type SessionDocument = Session & Document;

@@ -5,8 +5,8 @@
  * in the X-CSRF-Token header for state-changing methods (POST, PUT, PATCH,
  * DELETE). Safe methods (GET, HEAD, OPTIONS) are exempt.
  *
- * The CSRF cookie is not HTTP-only so the frontend can read it and include it
- * in the header; it is SameSite=strict to prevent cross-site submission.
+ * Requests authenticated via Bearer token (API clients, extensions) are exempt
+ * because they do not rely on ambient browser credentials and are immune to CSRF.
  */
 
 import { Injectable, NestMiddleware, Logger } from "@nestjs/common";
@@ -17,7 +17,15 @@ const CSRF_COOKIE_NAME = "csrf_token";
 const CSRF_HEADER_NAME = "x-csrf-token";
 const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-const EXEMPT_PATHS = ["/v1/auth/login", "/v1/auth/register"];
+const EXEMPT_PATHS = [
+  "/v1/auth/login",
+  "/v1/auth/register",
+  "/v1/auth/refresh",
+  "/v1/auth/password-reset-request",
+  "/v1/auth/password-reset-confirm",
+  "/v1/health",
+  "/docs",
+];
 
 function generateCsrfToken(): string {
   return crypto.randomBytes(32).toString("hex");
@@ -28,22 +36,28 @@ export class CsrfMiddleware implements NestMiddleware {
   private readonly logger = new Logger(CsrfMiddleware.name);
 
   use(req: Request, res: Response, next: NextFunction): void {
-    // Always (re)issue the CSRF cookie so clients have a current token
     const existingToken = req.cookies?.[CSRF_COOKIE_NAME];
     const csrfToken = existingToken ?? generateCsrfToken();
 
     res.cookie(CSRF_COOKIE_NAME, csrfToken, {
       httpOnly: false, // frontend must read it to send in header
-      sameSite: "strict",
+      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
     });
 
-    // Exempt safe methods and auth endpoints (no session yet)
+    // Exempt safe methods
     if (!STATE_CHANGING_METHODS.has(req.method)) {
       return next();
     }
 
+    // Exempt Bearer token requests (extensions, scripts, API integrations)
+    const authHeader = req.headers.authorization;
+    if (typeof authHeader === "string" && authHeader.toLowerCase().startsWith("bearer ")) {
+      return next();
+    }
+
+    // Exempt public auth endpoints and health
     if (EXEMPT_PATHS.some((p) => req.path.startsWith(p))) {
       return next();
     }

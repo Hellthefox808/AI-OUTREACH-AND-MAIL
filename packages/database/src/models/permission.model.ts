@@ -12,24 +12,25 @@ export class Permission extends Document {
   @Prop({ type: Types.ObjectId, ref: "Workspace", required: true, index: true })
   workspaceId!: Types.ObjectId;
 
-  @Prop({ required: true, index: true, unique: true })
+  @Prop({ type: String, required: true })
   key!: string;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   description!: string | null;
 
-  @Prop({ default: false })
+  @Prop({ type: Boolean, default: false })
   isSystem!: boolean;
 
-  @Prop({ default: Date.now })
+  @Prop({ type: Date, default: Date.now })
   createdAt!: Date;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   deletedAt!: Date | null;
 }
 
 export const PermissionSchema = SchemaFactory.createForClass(Permission);
 
+PermissionSchema.index({ workspaceId: 1, key: 1 }, { unique: true });
 PermissionSchema.index({ deletedAt: 1 }, { partialFilterExpression: { deletedAt: { $exists: true } } });
 
 export type PermissionDocument = Permission & Document;

@@ -3,8 +3,8 @@
  *
  * Ensures the workspace being accessed (from route param `workspaceId`, body,
  * or query) is one the authenticated user is a member of. Default-deny: no
- * matching membership means 403. Routes that are workspace-agnostic (e.g.
- * /auth/*) skip this guard.
+ * matching membership means 403. Routes that are public or workspace-agnostic
+ * (e.g. /auth/*, /health) skip this guard.
  */
 
 import {
@@ -14,8 +14,7 @@ import {
   Logger,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-
-const WORKSPACE_AGNOSTIC_KEY = "workspaceAgnostic";
+import { WORKSPACE_AGNOSTIC_KEY, IS_PUBLIC_KEY } from "../decorators";
 
 @Injectable()
 export class WorkspaceScopeGuard {
@@ -24,9 +23,17 @@ export class WorkspaceScopeGuard {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const workspaceAgnostic = this.reflector.get<boolean>(
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return true;
+    }
+
+    const workspaceAgnostic = this.reflector.getAllAndOverride<boolean>(
       WORKSPACE_AGNOSTIC_KEY,
-      context.getHandler()
+      [context.getHandler(), context.getClass()]
     );
     if (workspaceAgnostic) {
       return true;
@@ -48,11 +55,11 @@ export class WorkspaceScopeGuard {
       return true;
     }
 
-    const userWorkspaceIds: string[] = (user.workspaceIds || []).map((id: any) =>
+    const userWorkspaceIds: string[] = (user.workspaceIds || []).map((id: { toString(): string } | string) =>
       id.toString()
     );
 
-    if (!userWorkspaceIds.includes(workspaceId)) {
+    if (!userWorkspaceIds.includes(String(workspaceId))) {
       this.logger.warn(
         `User ${user.id} not a member of workspace ${workspaceId}`
       );

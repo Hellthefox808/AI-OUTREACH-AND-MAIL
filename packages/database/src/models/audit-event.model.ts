@@ -7,12 +7,13 @@
 
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { Document, Types } from "mongoose";
+import mongoose from "mongoose";
 
 export class AuditEvent extends Document {
-  @Prop({ required: true, index: true })
+  @Prop({ type: String, required: true, index: true })
   action!: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   outcome!: "success" | "failure";
 
   @Prop({ type: Types.ObjectId, ref: "User", index: true })
@@ -21,37 +22,35 @@ export class AuditEvent extends Document {
   @Prop({ type: Types.ObjectId, ref: "Workspace", index: true })
   workspaceId!: Types.ObjectId | null;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   requestId!: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   correlationId!: string;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   targetType!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   targetId!: string | null;
 
   @Prop({ type: mongoose.Schema.Types.Mixed, default: {} })
   metadata!: Record<string, unknown>;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   ipAddress!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   userAgent!: string | null;
 
-  @Prop({ default: Date.now })
+  @Prop({ type: Date, default: Date.now })
   createdAt!: Date;
 }
 
-import mongoose from "mongoose";
-
 export const AuditEventSchema = SchemaFactory.createForClass(AuditEvent);
 
+AuditEventSchema.index({ workspaceId: 1, createdAt: -1 });
 AuditEventSchema.index({ userId: 1, createdAt: -1 });
-AuditEventSchema.index({ workspaceId: 1, action: 1, createdAt: -1 });
-AuditEventSchema.index({ action: 1, outcome: 1, createdAt: -1 });
+AuditEventSchema.index({ action: 1, createdAt: -1 });
 
 export type AuditEventDocument = AuditEvent & Document;

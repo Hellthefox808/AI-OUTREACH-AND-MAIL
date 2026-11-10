@@ -6,31 +6,37 @@
  */
 
 import { Logger } from "@nestjs/common";
+import { WorkerHost } from "@nestjs/bullmq";
+import { Job } from "bullmq";
 
-export abstract class BaseQueueProcessor<TPayload = unknown, TResult = unknown> {
+export abstract class BaseQueueProcessor<TPayload = unknown, TResult = unknown> extends WorkerHost {
   protected abstract readonly logger: Logger;
 
-  abstract process(job: { id: string; name: string; data: TPayload }): Promise<TResult>;
+  abstract override process(job: Job<TPayload, TResult>): Promise<TResult>;
 
-  onFailed(job: { id: string; name: string; attemptsMade: number }, error: Error): void {
+  onFailed(job: { id?: string; name: string; attemptsMade?: number }, error: Error): void {
     this.logger.error(
-      `Job ${job.id} (${job.name}) failed after ${job.attemptsMade} attempts: ${error.message}`,
+      `Job ${job.id ?? "unknown"} (${job.name}) failed after ${job.attemptsMade ?? 0} attempts: ${error.message}`,
       { jobId: job.id, jobName: job.name, attempts: job.attemptsMade, stack: error.stack },
     );
   }
 
-  onCompleted(job: { id: string; name: string }, result: TResult): void {
+  onCompleted(job: { id?: string; name: string }, result: TResult): void {
     this.logger.log(
-      `Job ${job.id} (${job.name}) completed`,
+      `Job ${job.id ?? "unknown"} (${job.name}) completed`,
       { jobId: job.id, jobName: job.name, result },
     );
   }
 
-  protected reportProgress(_progress: number): void {
-    // Non-fatal: progress update failure should not fail the job
+  protected async reportProgress(job: Job<TPayload, TResult>, progress: number): Promise<void> {
+    try {
+      await job.updateProgress(progress);
+    } catch {
+      // Non-fatal: progress update failure should not fail the job
+    }
   }
 
-  protected requireIdempotencyKey(jobId: string): string {
+  protected requireIdempotencyKey(jobId?: string): string {
     if (!jobId) {
       throw new Error("Job missing idempotency key");
     }

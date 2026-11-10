@@ -6,6 +6,7 @@
  */
 
 import * as bcrypt from "bcryptjs";
+import * as crypto from "crypto";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { AuthService } from "./auth.service";
 
@@ -60,12 +61,14 @@ describe("Authentication integration flow", () => {
       incrementFailedLogin: vi.fn(),
       resetFailedLogin: vi.fn(),
       lock: vi.fn(),
+      withTransaction: vi.fn(async (cb: (session: any) => Promise<any>) => cb(null)),
     };
     sessions = {
       create: vi.fn(),
       revoke: vi.fn(),
       revokeAllForUser: vi.fn(),
       findByUser: vi.fn(),
+      findByRefreshTokenHash: vi.fn(),
     };
     workspaces = {
       findBySlug: vi.fn(),
@@ -150,7 +153,8 @@ describe("Authentication integration flow", () => {
     sessions.revoke.mockResolvedValue(undefined);
     const logoutResult = await service.logout("access-token");
     expect(logoutResult.revoked).toBe(true);
-    expect(sessions.revoke).toHaveBeenCalledWith("access-token");
+    const expectedHash = crypto.createHash("sha256").update("access-token").digest("hex");
+    expect(sessions.revoke).toHaveBeenCalledWith(expectedHash);
   });
 
   it("cross-workspace isolation: user A cannot access workspace B", async () => {
@@ -206,19 +210,24 @@ describe("Authentication integration flow", () => {
     ).rejects.toThrow("temporarily locked");
   });
 
-  it("refresh token flow: valid token returns new tokens", async () => {
+  it("refresh token flow: valid token returns new tokens and revokes old session", async () => {
     users.findById.mockResolvedValue(userA as any);
-    sessions.findByUser.mockResolvedValue([
-      { refreshTokenHash: "$2b$12$fakehash" },
-    ] as any);
+    const refreshHash = crypto.createHash("sha256").update("valid-refresh").digest("hex");
+    sessions.findByRefreshTokenHash.mockResolvedValue({
+      tokenHash: "old-token-hash",
+      refreshTokenHash: refreshHash,
+    } as any);
+    sessions.create.mockResolvedValue({} as any);
 
     const result = await service.refreshTokens("valid-refresh");
     expect(result.accessToken).toBe("access-token");
     expect(result.refreshToken).toBe("refresh-token");
+    expect(sessions.revoke).toHaveBeenCalledWith("old-token-hash");
   });
 
   it("refresh token flow: revoked token is rejected", async () => {
     users.findById.mockResolvedValue(userA as any);
+    sessions.findByRefreshTokenHash.mockResolvedValue(null);
     sessions.findByUser.mockResolvedValue([]);
 
     await expect(service.refreshTokens("valid-refresh")).rejects.toThrow(

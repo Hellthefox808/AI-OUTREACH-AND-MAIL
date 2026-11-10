@@ -70,6 +70,9 @@ import { SessionRepository } from "./repositories/session.repository";
 import { CompanyRepository } from "./repositories/company.repository";
 import { RecruiterRepository } from "./repositories/recruiter.repository";
 import { JobRepository } from "./repositories/job.repository";
+import { MembershipRepository } from "./repositories/membership.repository";
+import { RoleRepository } from "./repositories/role.repository";
+import { PermissionRepository } from "./repositories/permission.repository";
 
 const MODELS = [
   User,
@@ -106,6 +109,9 @@ const REPOSITORIES = [
   CompanyRepository,
   RecruiterRepository,
   JobRepository,
+  MembershipRepository,
+  RoleRepository,
+  PermissionRepository,
 ];
 
 @Global()

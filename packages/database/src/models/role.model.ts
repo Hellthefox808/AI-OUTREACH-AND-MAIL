@@ -12,22 +12,22 @@ export class Role extends Document {
   @Prop({ type: Types.ObjectId, ref: "Workspace", required: true, index: true })
   workspaceId!: Types.ObjectId;
 
-  @Prop({ required: true, index: true })
+  @Prop({ type: String, required: true, index: true })
   name!: string;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   description!: string | null;
 
   @Prop({ type: [Types.ObjectId], ref: "Permission", default: [] })
   permissionIds!: Types.ObjectId[];
 
-  @Prop({ default: false })
+  @Prop({ type: Boolean, default: false })
   isSystem!: boolean;
 
-  @Prop({ default: Date.now })
+  @Prop({ type: Date, default: Date.now })
   createdAt!: Date;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   deletedAt!: Date | null;
 }
 

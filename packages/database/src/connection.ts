@@ -24,9 +24,9 @@ export async function connectDatabase(uri: string): Promise<typeof mongoose> {
   isConnecting = true;
   connectPromise = mongoose
     .connect(uri, {
-      maxPoolSize: 20,
-      minPoolSize: 5,
-      serverSelectionTimeoutMS: 10000,
+      maxPoolSize: 50,
+      minPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
       family: 4,
     })

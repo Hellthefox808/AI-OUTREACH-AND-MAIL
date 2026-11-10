@@ -1,0 +1,319 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import {
+  Card,
+  Button,
+  Badge,
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  Input,
+  SpatialModal,
+  SpatialTabs,
+} from '@career-intelligence/ui';
+import { api, RecruiterItem } from '../../../lib/api';
+
+export default function RecruitersPage() {
+  const [recruiters, setRecruiters] = useState<RecruiterItem[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedFilter, setSelectedFilter] = useState('ALL');
+
+  // Form fields
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [designation, setDesignation] = useState('');
+  const [department, setDepartment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const loadRecruiters = async (cursor?: string) => {
+    try {
+      setIsLoading(true);
+      const res = await api.recruiters.list({ limit: 15, cursor });
+      setRecruiters(res.items || []);
+      setNextCursor(res.nextCursor);
+      setHasMore(res.hasMore);
+    } catch {
+      setRecruiters([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRecruiters();
+  }, []);
+
+  const handleCreateRecruiter = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name) {
+      setCreateError('Please specify recruiter name.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setCreateError(null);
+      await api.recruiters.create({
+        name,
+        email: email.trim() || undefined,
+        designation: designation.trim() || undefined,
+        department: department.trim() || undefined,
+      });
+      setShowCreateModal(false);
+      setName('');
+      setEmail('');
+      setDesignation('');
+      setDepartment('');
+      await loadRecruiters();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to add recruiter';
+      setCreateError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'VERIFIED':
+        return <Badge variant="success" pulse>VERIFIED</Badge>;
+      case 'SYNTAX_VALID':
+      case 'DOMAIN_VALID':
+      case 'PROVIDER_CHECKED':
+        return <Badge variant="info">{status}</Badge>;
+      case 'RISKY':
+      case 'CATCH_ALL':
+        return <Badge variant="warning">{status}</Badge>;
+      case 'INVALID':
+      case 'SUPPRESSED':
+        return <Badge variant="danger">{status}</Badge>;
+      default:
+        return <Badge variant="outline">{status || 'UNVERIFIED'}</Badge>;
+    }
+  };
+
+  const filteredRecruiters = recruiters.filter((r) => {
+    // Filter by tab
+    if (selectedFilter === 'VERIFIED' && r.verificationStatus !== 'VERIFIED') return false;
+    if (selectedFilter === 'RISKY' && r.verificationStatus !== 'RISKY') return false;
+    if (selectedFilter === 'UNVERIFIED' && r.verificationStatus !== 'UNVERIFIED' && r.verificationStatus) return false;
+
+    // Filter by query
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      r.name.toLowerCase().includes(q) ||
+      (r.email || '').toLowerCase().includes(q) ||
+      (r.designation || '').toLowerCase().includes(q)
+    );
+  });
+
+  const filterTabs = [
+    { id: 'ALL', label: 'All Contacts', count: recruiters.length },
+    { id: 'VERIFIED', label: 'Verified', count: recruiters.filter((r) => r.verificationStatus === 'VERIFIED').length },
+    { id: 'RISKY', label: 'Risky / Catch-All' },
+    { id: 'UNVERIFIED', label: 'Pending' },
+  ];
+
+  return (
+    <div className="space-y-6 max-w-7xl animate-fade-in">
+      {/* Top Action Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-white">Recruiter Discovery</h2>
+          <p className="text-xs text-slate-400">
+            Talent acquisition contacts with multi-stage verification & deliverability scoring
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Input
+            placeholder="Search recruiters..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-48 sm:w-60 h-9 text-xs"
+            leftIcon={
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8" />
+                <path d="M21 21l-4.35-4.35" />
+              </svg>
+            }
+          />
+          <Button variant="crystal" size="sm" onClick={() => setShowCreateModal(true)}>
+            + Add Recruiter
+          </Button>
+        </div>
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="flex items-center overflow-x-auto pb-1">
+        <SpatialTabs
+          tabs={filterTabs}
+          activeTab={selectedFilter}
+          onChange={setSelectedFilter}
+        />
+      </div>
+
+      {/* Layer 5: Spatial Modal for Recruiter Creation */}
+      <SpatialModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Add Recruiter Contact"
+        description="Record a talent acquisition specialist to automatically trigger background verification."
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setShowCreateModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="crystal"
+              size="sm"
+              isLoading={isSubmitting}
+              onClick={handleCreateRecruiter}
+            >
+              Save Recruiter
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleCreateRecruiter} className="space-y-4">
+          {createError && (
+            <div className="rounded-xl bg-rose-500/10 p-3 text-xs text-rose-300 border border-rose-500/25">
+              {createError}
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Full Name"
+              placeholder="e.g. Sarah Jenkins"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+            <Input
+              label="Work Email"
+              type="email"
+              placeholder="e.g. sjenkins@company.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <Input
+              label="Designation / Role"
+              placeholder="e.g. Staff Tech Recruiter"
+              value={designation}
+              onChange={(e) => setDesignation(e.target.value)}
+            />
+            <Input
+              label="Department"
+              placeholder="e.g. Core Infrastructure Hiring"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+            />
+          </div>
+        </form>
+      </SpatialModal>
+
+      {/* Table Container Card */}
+      <Card material="frosted" className="border-white/[0.08]">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Contact Name</TableHead>
+              <TableHead>Verified Email</TableHead>
+              <TableHead>Designation & Team</TableHead>
+              <TableHead>Verification Status</TableHead>
+              <TableHead>Indexed On</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-12 text-slate-400">
+                  <div className="flex flex-col items-center justify-center space-y-2">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
+                    <span className="text-xs">Querying recruiter index...</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : filteredRecruiters.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-12 text-slate-400">
+                  No recruiter contacts found matching the active filter.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredRecruiters.map((r) => (
+                <TableRow key={r._id} className="hover:bg-white/[0.04]">
+                  <TableCell>
+                    <div className="flex items-center space-x-3">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 border border-white/10 text-xs font-semibold text-slate-200 uppercase">
+                        {r.name.slice(0, 2)}
+                      </div>
+                      <span className="font-medium text-white">{r.name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-sky-400">
+                    {r.email ? (
+                      <a href={`mailto:${r.email}`} className="hover:underline">
+                        {r.email}
+                      </a>
+                    ) : (
+                      <span className="text-slate-500">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-xs text-slate-300">
+                    {r.designation ? (
+                      <span>
+                        {r.designation}
+                        {r.department && (
+                          <span className="text-slate-500 font-mono"> · {r.department}</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-slate-500 font-mono">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>{getStatusBadge(r.verificationStatus)}</TableCell>
+                  <TableCell className="text-xs text-slate-400 font-mono">
+                    {new Date(r.createdAt).toLocaleDateString()}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+
+        {/* Pagination controls */}
+        <div className="flex items-center justify-between p-4 border-t border-white/[0.06] bg-slate-950/40">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => loadRecruiters()}
+            disabled={isLoading}
+            className="text-xs text-slate-300"
+          >
+            Reset / First Page
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasMore || !nextCursor || isLoading}
+            onClick={() => nextCursor && loadRecruiters(nextCursor)}
+            className="text-xs"
+          >
+            Next Page &rarr;
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
